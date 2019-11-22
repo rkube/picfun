@@ -22,7 +22,7 @@ fM(v) = √(m / 2 / kB / T) exp(-m v^2 / 2 / k / T)
 
 """ ->
 function load_pert_x(num_ptl, L, ϵ, k, vth)
-    print("Initializing perturbation")
+    println("Initializing perturbation")
     # Load the particle velocities from a Maxwellian Distribution
     ptl_v = rand(Normal(0.0, 1.0), num_ptl)
 
@@ -44,9 +44,8 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     ptl_z = copy(sol.zero)
     sort!(ptl_z)
 
-
+    # Generate a vector of particles
     ptl_vec = Array{particle}(undef, num_ptl)
-    # Generate a vector of particle
     for idx ∈ 1:num_ptl
         ptl_vec[idx] = particle(ptl_z[idx], ptl_v[idx])
     end

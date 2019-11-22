@@ -1,12 +1,15 @@
 module pic_utils
 
-export S_vec, b1, SM
+using particles: particle
+using grids: grid_1d
+
+export S_vec, b1, smooth, deposit
 
 @doc """
 Implements the binomial smoothing operator:
 SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
 """ ->
-function SM(Q::AbstractArray{<:AbstractFloat})
+function smooth(Q::AbstractArray{<:AbstractFloat})
   Q_sm = zeros(length(Q))
   Q_sm[2:end-1] = 0.25 * (Q[1:end-2] + 2 * Q[2:end-1] + Q[3:end])
   Q_sm[1] = 0.5 * (Q[1] + Q[2])
@@ -15,12 +18,15 @@ function SM(Q::AbstractArray{<:AbstractFloat})
 end
 
 @doc """
-b-spline b1
+b-spline b1.
+
+          0  ,   if |x| > 1
+b1(x) = { x+1,   if -1 < x < 0
+          1-x.   if 0 <= x , 1
 """ ->
 function b1(z, zp, Δz)
     arg = (z - zp) / Δz
-
-    if(abs(arg) > 1)
+    if(abs(arg) >= 1)
         return (0.0)
     end
 
@@ -61,5 +67,38 @@ function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::A
 
     return S
 end
+
+
+@doc """
+Evaluate the expression ∑_{particle} f(p) * b1(z_i, z_particle, Δz), where i
+indices the grid, for all grid points.
+""" ->
+function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
+
+    # Get the z-coordinates of the grid, plus one point at the upper boundary.
+    zz = (0:1:zgrid.Nz) * zgrid.Δz
+    # S contains the sum over all particles of f(p) * b1(z_i, z_p, Δz)
+    S = zeros(zgrid.Nz)
+    # Find the last grid index i where zz[i] < ptl_vec.
+    last_idx = map(p -> findall(zz .< p.pos)[end], ptl_vec)
+
+    for idx ∈ range(1,stop=length(ptl_vec))
+        # gidx[01] serves two purposes:
+        # 1.) Index grid quantities
+        # 2.) Get the z-coordinate of the grid at that index.
+        #     Do this by subtracting 1!
+        gidx0 = last_idx[idx]
+        # When wrapping at Nz, add one
+        gidx1 = gidx0 == zgrid.Nz ? 1 : gidx0 + 1
+        #println("$(idx), ptl.z = $(ptl_vec[idx].pos), grid_idx = $(gidx0), $(gidx1).")
+        S[gidx0] = b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
+        S[gidx1] = b1((gidx1 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
+        #if(gidx0 == 1 || gidx1 == 1)
+        #   println("$(S[1]), $(S[end])")
+        #end
+    end
+    return(S)
+end
+
 
 end

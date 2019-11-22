@@ -32,13 +32,12 @@ function b1(z, zp, Δz)
 end
 
 
-
 @doc """
 Given a particle position zp, evaluate the S(x, xp) on the entire grid
 """ ->
 function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::AbstractArray{<:AbstractFloat})
-    # We have periodic boundary conditions and zgrid does not include the element at L 
-    # The algorithm below ignores this and calculates the weights on the last index where z < zp 
+    # We have periodic boundary conditions and zgrid does not include the element at L
+    # The algorithm below ignores this and calculates the weights on the last index where z < zp
     # and the next index.
     # Now, when last_idx is just the last element of _zgrid, we need to have an element to the right.
     # So here we just pad.
@@ -53,7 +52,7 @@ function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::A
         S[i] = b1(zgrid[i], zp, Δz[last_idx])
     end
 
-    # If the last_idx where z < zp is just the end of the array, the padded element needs to be 
+    # If the last_idx where z < zp is just the end of the array, the padded element needs to be
     # assigned to the first one
     if (last_idx == length(_zgrid))
         S[1] = S[end]

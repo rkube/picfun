@@ -8,7 +8,7 @@ export load_pert_x
 
 using NLsolve
 using Distributions
-
+using particles: particle
 
 @doc """
 load_pert_x
@@ -22,6 +22,7 @@ fM(v) = √(m / 2 / kB / T) exp(-m v^2 / 2 / k / T)
 
 """ ->
 function load_pert_x(num_ptl, L, ϵ, k, vth)
+    print("Initializing perturbation")
     # Load the particle velocities from a Maxwellian Distribution
     ptl_v = rand(Normal(0.0, 1.0), num_ptl)
 
@@ -33,7 +34,7 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     # G(x) = int_{0}^{x} g(y) dy
     # and assume r ~ Uniform[0;1]. Then:
     # r = int_{0}^{x} g(y) dy = x + eps sin(kx) / k
-    # Now we need to solve the equation above for x 
+    # Now we need to solve the equation above for x
 
     function f!(dx, x, r, ϵ, k)
         dx .= x .+ ϵ * sin.(k .* x) ./ k .- r
@@ -44,7 +45,16 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     ptl_z = copy(sol.zero)
     sort!(ptl_z)
 
-    return(ptl_z, ptl_v)
+
+    ptl_vec = Array{particle}(undef, num_ptl)
+    # Generate a vector of particle
+    idx = 0
+    for ptl in zip(ptl_z, ptl_v)
+        ptl_vec[idx] = particle(ptl[0], ptl[1])
+        idx += 1
+    end
+
+    return(ptl_vec)
 end
 
 

@@ -41,17 +41,14 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     end
     dx = zeros(num_ptl)
     sol = nlsolve((dx, x) -> f!(dx, x, r, ϵ, k), zeros(num_ptl))
-
     ptl_z = copy(sol.zero)
     sort!(ptl_z)
 
 
     ptl_vec = Array{particle}(undef, num_ptl)
     # Generate a vector of particle
-    idx = 0
-    for ptl in zip(ptl_z, ptl_v)
-        ptl_vec[idx] = particle(ptl[0], ptl[1])
-        idx += 1
+    for idx ∈ 1:num_ptl
+        ptl_vec[idx] = particle(ptl_z[idx], ptl_v[idx])
     end
 
     return(ptl_vec)

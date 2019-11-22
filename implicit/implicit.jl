@@ -35,15 +35,16 @@ particle_per_cell = 16
 num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $L")
 
-ptl_e_z, ptl_e_v = load_pert_x(num_ptl, L, 0.1, 20.0, 1.0)
+# Initialize  electron and ion population
+ptl_e = load_pert_x(num_ptl, L, 0.1, 20.0, 1.0)
+ptl_i = Array{particle}(undef, num_ptl)
 ptl_i_z = rand(Uniform(1e-6, L-1e-6), num_ptl)
 sort!(ptl_i_z)
-ptl_i_v = zeros(num_ptl)
+for idx ∈ 1:num_ptl
+    ptl_i = particle(ptl_i_z[idx], 0.0)
 
-ptl_e_z0 = copy(ptl_e_z)
-ptl_e_v0 = copy(ptl_e_v)
-ptl_i_z0 = copy(ptl_i_z)
-ptl_i_v0 = copy(ptl_i_v)
+ptl_e0 = copy(ptl_e)
+ptl_i0 = copy(ptl_i)
 
 # Initialize the electric field
 # The output after one time-step
@@ -68,7 +69,7 @@ j_avg = zeros(Nz)
 for n in 1:Nt
   println("Subcycle $n / $Nt")
 
-  particle_push.push_v0!(ptl_e_z, ptl_e_v, ptl_i_z, ptl_i_v, L, Δt, E_ip, E_initial, S_vec, zgrid, Δz, j_avg)
+  particle_push.push_v0!(ptl_e, ptl_i, L, Δt, E_ip, E_initial, S_vec, zgrid, Δz, j_avg)
   #
   # #### Electrons
   # # Get electric field at the particle positions

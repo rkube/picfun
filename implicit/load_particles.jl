@@ -8,6 +8,7 @@ export load_pert_x
 
 using NLsolve
 using Distributions
+using Random
 using particles: particle
 
 @doc """
@@ -22,10 +23,11 @@ fM(v) = √(m / 2 / kB / T) exp(-m v^2 / 2 / k / T)
 
 """ ->
 function load_pert_x(num_ptl, L, ϵ, k, vth)
+
+    Random.seed!(1)
     println("Initializing perturbation")
     # Load the particle velocities from a Maxwellian Distribution
     ptl_v = rand(Normal(0.0, 1.0), num_ptl)
-
     # Load the particle positions by sampling from 1 + \eps cos(kx) for 0 < x < L
     r = rand(Uniform(1e-6, L-1e-6), num_ptl)
 

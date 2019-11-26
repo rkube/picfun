@@ -1,16 +1,15 @@
-#
+# -*- Encoding: UTF-8 -*-
 # Global constants
 #
 
 module units
 
-export qe, qi, me, mi, ϵ0
+export qₑ, qᵢ, mₑ, mᵢ, ϵ₀
 
-
-qe = -1.0
-qi = 1.0
-ϵ0 = 1.0
-me = 1.0
-mi = 100.0
+qₑ = -1.0
+qᵢ = 1.0
+ϵ₀ = 1.0
+mₑ = 1.0
+mᵢ = 100.0
 
 end

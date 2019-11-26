@@ -74,7 +74,6 @@ Evaluate the expression ∑_{particle} f(p) * b1(z_i, z_particle, Δz), where i
 indices the grid, for all grid points.
 """ ->
 function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
-
     # Get the z-coordinates of the grid, plus one point at the upper boundary.
     zz = (0:1:zgrid.Nz) * zgrid.Δz
     # S contains the sum over all particles of f(p) * b1(z_i, z_p, Δz)
@@ -82,7 +81,8 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # Find the last grid index i where zz[i] < ptl_vec.
     last_idx = map(p -> findall(zz .< p.pos)[end], ptl_vec)
 
-    for idx ∈ range(1, stop=length(ptl_vec))
+    #for idx ∈ range(1, stop=length(ptl_vec))
+    for idx ∈ 1:length(ptl_vec)
         # gidx[01] serves two purposes:
         # 1.) Index grid quantities
         # 2.) Get the z-coordinate of the grid at that index.
@@ -90,15 +90,10 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
         gidx0 = last_idx[idx]
         # When wrapping at Nz, add one
         gidx1 = gidx0 == zgrid.Nz ? 1 : gidx0 + 1
-        #println("$(idx), ptl.z = $(ptl_vec[idx].pos), grid_idx = $(gidx0), $(gidx1).")
         S[gidx0] += b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
         S[gidx1] += b1((gidx1 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
-        #if(gidx0 == 1 || gidx1 == 1)
-        #   println("$(S[1]), $(S[end])")
-        #end
     end
     return(S)
 end
-
 
 end

@@ -61,7 +61,7 @@ nᵢ = deposit(ptl_i, zgrid, p -> 1.)
 ϕ₀ = ∇⁻²(-ρ₀, zgrid)
 # Calculate initial electric field with centered difference stencil
 E₀ = zeros(Nz)
-E₀[1] = (ϕ₀[2] - ϕ₀[3:end]) * 0.5 / zgrid.Δz
+E₀[1] = (ϕ₀[2] - ϕ₀[end]) * 0.5 / zgrid.Δz
 E₀[2:end-1] = (ϕ₀[1:end-2] - ϕ₀[3:end]) * 0.5 / zgrid.Δz
 E₀[end] = (ϕ₀[end-1] - ϕ₀[1]) * 0.5 / zgrid.Δz
 
@@ -69,21 +69,21 @@ plot(ϕ₀)
 plot!(E₀)
 
 
-ptl_e0 = copy(ptl_e)
-ptl_i0 = copy(ptl_i)
+ptlₑ₀ = copy(ptl_e)
+ptlᵢ₀ = copy(ptl_i)
 ptl_e12 = Array{particle}(undef, num_ptl)
 
 # Calculate initial j_avg
 j_avg_0 = sum(deposit(ptl_e, zgrid, p -> p.vel * qₑ / zgrid.Δz)) / zgrid.Lz
 
-# Get a periodic interpolator for E₀
+# Construct a periodic interpolator for E₀
 _E_per = copy(E₀)
 push!(_E_per, _E_per[1])
 itp = interpolate(_E_per, BSpline(Linear()))
 itp2 = Interpolations.scale(itp, zrg)
 E_ip_old = extrapolate(itp2, Periodic())
 
-# Outer loop: Guess Etilde
+# Construct a periodic interpolator for new E-field
 E_new = E₀ + rand(-1e-2:1e-4:1e-2, Nz)
 _E_per = copy(E_new)
 push!(_E_per, _E_per[1])
@@ -94,9 +94,8 @@ E_ip_new = extrapolate(itp2, Periodic())
 # Define flags for iterations
 E_converged = false
 num_it_E = 0
-plot(1:Nz, E₀)
-while(E_converged == false)
 
+while(E_converged == false)
     # Iterate over particles and make their position and velocity consistent
     # with the current guess of the electric field
     for ele ∈ 1:num_ptl
@@ -108,13 +107,14 @@ while(E_converged == false)
         # Then: iterate the particle's coordinates until convergence
         while(ptl_converged == false)
             # Calculate x_p^{n+1/2}
-            xp_n12 = 0.5 * (ptl_e0[ele].pos + xp_guess)
+            xₚⁿ⁺½ =  0.5 * (ptlₑ₀[ele].pos + xp_guess)
             # Calculate v_p^{n+1}
-            vp_new = ptl_e0[ele].vel + Δt * qₑ * 0.5 * (E_ip_new(xp_n12) + E_ip_old(xp_n12)) / mₑ
+            vp_new = ptlₑ₀[ele].vel + Δt * qₑ * 0.5 * (E_ip_new(xₚⁿ⁺½) + E_ip_old(xₚⁿ⁺½)) / mₑ
             # Calculate v_p^{n+1/2}
-            vp_n12 = 0.5 * (ptl_e0[ele].vel + vp_new)
+            vₚⁿ⁺½ = 0.5 * (ptlₑ₀[ele].vel + vp_new)
+            #vp_n12 = 0.5 * (ptl_e0[ele].vel + vp_new)
             # Calculate x_p^{n+1}
-            xp_new = ptl_e0[ele].pos + Δt * vp_n12
+            xp_new = ptlₑ₀[ele].pos + Δt * vₚⁿ⁺½
             #println("*** it $(num_it_ptl): xp_n12=$(xp_n12), xp_new=$(xp_new), vp_n12=$(vp_n12), vp_new=$(vp_new)")
 
             # Check convergence
@@ -140,8 +140,8 @@ while(E_converged == false)
         end #while_ptl_converged==false
         fix_position!(ptl_e[ele], zgrid.Lz)
         # Update ptl_e12 for the current particle
-        ptl_e12[ele] = particle(0.5 * (ptl_e[ele].pos + ptl_e0[ele].pos),
-                                0.5 * (ptl_e[ele].vel + ptl_e0[ele].vel))
+        ptl_e12[ele] = particle(0.5 * (ptl_e[ele].pos + ptlₑ₀[ele].pos),
+                                0.5 * (ptl_e[ele].vel + ptlₑ₀[ele].vel))
         fix_position!(ptl_e12[ele], zgrid.Lz)
     end #for ptl in ptl_e
 
@@ -168,6 +168,13 @@ while(E_converged == false)
         global E_converged = true
         break
     end
+    #Take current E to be E₀
+    E₀[:] = E_new[:]
+    _E_per = copy(E₀)
+    push!(_E_per, _E_per[1])
+    itp = interpolate(_E_per, BSpline(Linear()))
+    itp2 = Interpolations.scale(itp, zrg)
+    global E_ip_old = extrapolate(itp2, Periodic())
 
     if(num_it_E > 500)
         println("Iteration for E: Iterations exceed 10, terminating")

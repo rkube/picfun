@@ -6,7 +6,7 @@ module particle_push
 
 using units: qₑ, qᵢ, mₑ, mᵢ, ϵ₀
 using grids: grid_1d
-using particles: particle
+using particles: particle, fix_position!
 
 export push_v0!, push_v1!
 
@@ -55,5 +55,56 @@ function push_v1!(ptl_vec::Array{particle}, grid::grid_1d, Δt, E_ip)
       ptl_vec[idx].vel = ptl_vec[idx].vel + qₑ * E_ptl[idx] * Δt / me
    end
 end #push_v1!
+
+
+@doc """
+Iteratively determines new positions given an Electric field
+"""->
+function push_v2!(ptlₑ::Array{particle},
+                  ptlₑ₀::Array{particle},
+                  ptlₑ½::Array{particle},
+                  ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
+   for ele ∈ 1:length(ptlₑ)
+      #println("Iterating particle $(ele) / $(num_ptl)")
+      # Initial guess of new position and velocity before we start iterations.
+      x̃= ptlₑ[ele].pos + 0.1
+      num_it_ptl = 0
+      ptl_converged=false
+      # Then: iterate the particle's coordinates until convergence
+      while(ptl_converged == false)
+           # Calculate x_p^{n+1/2}
+           xₚⁿ⁺½ =  0.5 * (ptlₑ₀[ele].pos + x̃)
+           # Calculate v_p^{n+1}
+           vₚⁿ⁺¹= ptlₑ₀[ele].vel + Δt * qₑ * 0.5 * (ip_Ẽ(xₚⁿ⁺½) + ip_Eⁿ(xₚⁿ⁺½)) / mₑ
+           # Calculate v_p^{n+1/2}
+           vₚⁿ⁺½ = 0.5 * (ptlₑ₀[ele].vel + vₚⁿ⁺¹)
+           # Calculate x_p^{n+1}
+           xₚⁿ⁺¹ = ptlₑ₀[ele].pos + Δt * vₚⁿ⁺½
+           #println("*** it $(num_it_ptl): xp_n12=$(xp_n12), xp_new=$(xp_new), vp_n12=$(vp_n12), vp_new=$(vp_new)")
+
+           # Check convergence
+           if ((abs(xₚⁿ⁺¹ - x̃) ≤ ϵᵣ * abs(xₚⁿ⁺¹) + ϵₐ))
+               #println("*** Converged: x̃ - xₚⁿ⁺¹| = $(abs(xₚⁿ⁺¹ - x̃))")
+               ptl_converged = true
+               ptlₑ[ele].pos = xₚⁿ⁺¹
+               ptlₑ[ele].vel = vₚⁿ⁺¹
+               break
+           end
+           # Let xₚⁿ⁺¹ be the new guess.
+           x̃ = xₚⁿ⁺¹
+           num_it_ptl += 1
+           if(num_it_ptl > 100)
+               println("Iterations exceeded $(num_it_ptl), terminating")
+               ptl_converged = true
+               break
+           end
+      end #while_ptl_converged==false
+      fix_position!(ptlₑ[ele], zgrid.Lz)
+      # Update ptl_e12 for the current particle
+      ptlₑ½[ele] = particle(0.5 * (ptlₑ[ele].pos + ptlₑ₀[ele].pos),
+                            0.5 * (ptlₑ[ele].vel + ptlₑ₀[ele].vel))
+      fix_position!(ptlₑ½[ele], zgrid.Lz)
+   end #for ptl in ptl_e
+end
 
 end #module

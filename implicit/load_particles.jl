@@ -12,6 +12,8 @@ using Distributions
 using Random
 using particles: particle
 
+#""" See Birdsall, Langdon, chapter 16"""
+
 @doc """
 load_pert_x
 
@@ -32,11 +34,11 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     # Load the particle positions by sampling from 1 + \eps cos(kx) for 0 < x < L
     r = rand(Uniform(1e-6, L-1e-6), num_ptl)
 
-    # g(x) = 1 + eps cos (kx)
+    # g(x) = 1 + ϵ cos (kx)
     # Define CDF:
     # G(x) = int_{0}^{x} g(y) dy
     # and assume r ~ Uniform[0;1]. Then:
-    # r = int_{0}^{x} g(y) dy = x + eps sin(kx) / k
+    # r = int_{0}^{x} g(y) dy = x + ϵ sin(kx) / k
     # Now we need to solve the equation above for x
 
     function f!(dx, x, r, ϵ, k)

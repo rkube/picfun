@@ -8,6 +8,7 @@ export S_vec, b1, smooth, deposit
 @doc """
 Implements the binomial smoothing operator:
 SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
+
 """ ->
 function smooth(Q::AbstractArray{<:AbstractFloat})
   Q_sm = zeros(length(Q))

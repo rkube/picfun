@@ -73,7 +73,7 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     # Generate a vector of particles
     ptl_vec = Array{particle}(undef, num_ptl)
     for idx ∈ 1:num_ptl
-        ptl_vec[idx] = particle(ptl_z[idx], ptl_v[idx])
+        ptl_vec[idx] = particle(abs(ptl_z[idx]), ptl_v[idx])
     end
 
     return(ptl_vec)

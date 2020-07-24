@@ -39,7 +39,7 @@ zrg = (0:Nz) * zgrid.Δz
 Random.seed!(1)
 
 # Initial number of particles per cell
-particle_per_cell = 512
+particle_per_cell = 16
 num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 

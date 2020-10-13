@@ -80,9 +80,9 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # S contains the sum over all particles of f(p) * b1(z_i, z_p, Δz)
     S = zeros(zgrid.Nz)
     # Find the last grid index i where zz[i] < ptl_vec.
-    last_idx = map(p -> findall(zz .< p.pos)[end], ptl_vec)
+    # Add 1 since we have 1-based indexing
+    last_idx = map(p -> 1 + Int(floor(p.pos / zgrid.Δz)), ptl_vec)
 
-    #for idx ∈ range(1, stop=length(ptl_vec))
     for idx ∈ 1:length(ptl_vec)
         # gidx[01] serves two purposes:
         # 1.) Index grid quantities

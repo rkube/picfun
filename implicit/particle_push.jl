@@ -7,8 +7,9 @@ module particle_push
 using units: qₑ, qᵢ, mₑ, mᵢ, ϵ₀
 using grids: grid_1d
 using particles: particle, fix_position!
+using Distributions
 
-export push_v0!, push_v1!
+export push_v0!, push_v1!, push_v2!, push_v3!
 
 @doc """
 Pushes the electrons and ions for one sub-cycle
@@ -65,33 +66,37 @@ function push_v2!(ptlₑ::Array{particle},
                   ptlₑ½::Array{particle},
                   ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
    for ele ∈ 1:length(ptlₑ)
-      #println("Iterating particle $(ele) / $(num_ptl)")
       # Initial guess of new position and velocity before we start iterations.
-      x̃= ptlₑ[ele].pos + 0.1
+      x̃ = ptlₑ[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]
+      #println("Orignial position: $(ptlₑ[ele].pos), Starting guess: $(x̃). Original velocity: $(ptlₑ[ele].vel)")
       num_it_ptl = 0
       ptl_converged=false
       # Then: iterate the particle's coordinates until convergence
+      # Note: We don't need to worry moving the particle out of bounds here since the
+      # electric field interpolator is periodic. And distance measuring between particle
+      # positions is fine too. We only need to fix their position after the Picard
+      # iteration has converged.
       while(ptl_converged == false)
            # Calculate x_p^{n+1/2}
-           xₚⁿ⁺½ =  0.5 * (ptlₑ₀[ele].pos + x̃)
+           x_pⁿ⁺½ =  0.5 * (ptlₑ₀[ele].pos + x̃)
            # Calculate v_p^{n+1}
-           vₚⁿ⁺¹= ptlₑ₀[ele].vel + Δt * qₑ * 0.5 * (ip_Ẽ(xₚⁿ⁺½) + ip_Eⁿ(xₚⁿ⁺½)) / mₑ
+           v_pⁿ⁺¹= ptlₑ₀[ele].vel + Δt * qₑ * 0.5 * (ip_Ẽ(x_pⁿ⁺½) + ip_Eⁿ(x_pⁿ⁺½)) / mₑ
            # Calculate v_p^{n+1/2}
-           vₚⁿ⁺½ = 0.5 * (ptlₑ₀[ele].vel + vₚⁿ⁺¹)
+           v_pⁿ⁺½ = 0.5 * (ptlₑ₀[ele].vel + v_pⁿ⁺¹)
            # Calculate x_p^{n+1}
-           xₚⁿ⁺¹ = ptlₑ₀[ele].pos + Δt * vₚⁿ⁺½
-           #println("*** it $(num_it_ptl): xp_n12=$(xp_n12), xp_new=$(xp_new), vp_n12=$(vp_n12), vp_new=$(vp_new)")
+           x_pⁿ⁺¹ = ptlₑ₀[ele].pos + Δt * v_pⁿ⁺½
+           #println("*** it $(num_it_ptl): x_pⁿ⁺¹=$(x_pⁿ⁺¹), v_pⁿ⁺¹=$(v_pⁿ⁺¹)")
 
            # Check convergence
-           if ((abs(xₚⁿ⁺¹ - x̃) ≤ ϵᵣ * abs(xₚⁿ⁺¹) + ϵₐ))
-               #println("*** Converged: x̃ - xₚⁿ⁺¹| = $(abs(xₚⁿ⁺¹ - x̃))")
+           if ((abs(x_pⁿ⁺¹ - x̃) ≤ ϵᵣ * abs(x_pⁿ⁺¹) + ϵₐ))
+               #println("*** Starting point: $(ptlₑ[ele].pos), Guess: $(x̃), Converged to: $(x_pⁿ⁺¹) Converged: |x̃ - x_pⁿ⁺¹| = $(abs(x_pⁿ⁺¹ - x̃)), $(num_it_ptl) iterations")
                ptl_converged = true
-               ptlₑ[ele].pos = xₚⁿ⁺¹
-               ptlₑ[ele].vel = vₚⁿ⁺¹
+               ptlₑ[ele].pos = x_pⁿ⁺¹
+               ptlₑ[ele].vel = v_pⁿ⁺¹
                break
            end
-           # Let xₚⁿ⁺¹ be the new guess.
-           x̃ = xₚⁿ⁺¹
+           # Let x_pⁿ⁺¹ be the new guess.
+           x̃ = x_pⁿ⁺¹
            num_it_ptl += 1
            if(num_it_ptl > 100)
                println("Iterations exceeded $(num_it_ptl), terminating")
@@ -106,5 +111,64 @@ function push_v2!(ptlₑ::Array{particle},
       fix_position!(ptlₑ½[ele], zgrid.Lz)
    end #for ptl in ptl_e
 end
+
+
+
+@doc """
+Iteratively determines new positions given an Electric field.
+Basically the same as v2, but works for both ions and electrons
+"""->
+function push_v3!(ptl::Array{particle},
+                  ptl₀::Array{particle},
+                  ptl½::Array{particle},
+                  q, m, 
+                  ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
+   for ele ∈ 1:length(ptl)
+      # Initial guess of new position and velocity before we start iterations.
+      x̃ = ptl[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]
+      num_it_ptl = 0
+      ptl_converged=false
+      # Then: iterate the particle's coordinates until convergence
+      # Note: We don't need to worry moving the particle out of bounds here since the
+      # electric field interpolator is periodic. And distance measuring between particle
+      # positions is fine too. We only need to fix their position after the Picard
+      # iteration has converged.
+      while(ptl_converged == false)
+           # Calculate x_p^{n+1/2}
+           x_pⁿ⁺½ =  0.5 * (ptl₀[ele].pos + x̃)
+           # Calculate v_p^{n+1}
+           v_pⁿ⁺¹= ptl₀[ele].vel + Δt * q * 0.5 * (ip_Ẽ(x_pⁿ⁺½) + ip_Eⁿ(x_pⁿ⁺½)) / m
+           # Calculate v_p^{n+1/2}
+           v_pⁿ⁺½ = 0.5 * (ptl₀[ele].vel + v_pⁿ⁺¹)
+           # Calculate x_p^{n+1}
+           x_pⁿ⁺¹ = ptl₀[ele].pos + Δt * v_pⁿ⁺½
+           #println("*** it $(num_it_ptl): x_pⁿ⁺¹=$(x_pⁿ⁺¹), v_pⁿ⁺¹=$(v_pⁿ⁺¹)")
+
+           # Check convergence
+           if ((abs(x_pⁿ⁺¹ - x̃) ≤ ϵᵣ * abs(x_pⁿ⁺¹) + ϵₐ))
+               #println("*** Starting point: $(ptl[ele].pos), Guess: $(x̃), Converged to: $(x_pⁿ⁺¹) Converged: |x̃ - x_pⁿ⁺¹| = $(abs(x_pⁿ⁺¹ - x̃)), $(num_it_ptl) iterations")
+               ptl_converged = true
+               ptl[ele].pos = x_pⁿ⁺¹
+               ptl[ele].vel = v_pⁿ⁺¹
+               break
+           end
+           # Let x_pⁿ⁺¹ be the new guess.
+           x̃ = x_pⁿ⁺¹
+           num_it_ptl += 1
+           if(num_it_ptl > 1000)
+               #println("Picard: Iterations exceeded $(num_it_ptl), terminating")
+               ptl_converged = true
+               break
+           end
+      end #while_ptl_converged==false
+      fix_position!(ptl[ele], zgrid.Lz)
+      # Update ptl_e12 for the current particle
+      ptl½[ele] = particle(0.5 * (ptl[ele].pos + ptl₀[ele].pos),
+                           0.5 * (ptl[ele].vel + ptl₀[ele].vel))
+      fix_position!(ptl½[ele], zgrid.Lz)
+   end #for ptl i
+end
+
+
 
 end #module

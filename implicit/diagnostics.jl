@@ -15,7 +15,7 @@ function diag_ptl(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, tidx)
 
     fname = @sprintf "particles_%04d.txt" tidx
     open(fname, "w") do io
-        write(io, "x(ele)\tv(ele)\tx(ion)\tv(ion)")
+        write(io, "x(ele)\tv(ele)\tx(ion)\tv(ion)\n")
         for i in 1:length(ptlₑ) 
            write(io, "$(ptlₑ[i].pos)\t$(ptlₑ[i].vel)\t$(ptlᵢ[i].pos)\t$(ptlᵢ[i].vel)  \n")
         end
@@ -31,8 +31,7 @@ function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::
     # Energy in the electric field
     enrg_elc = 0.5 * ϵ₀ * sum(E .* E)
 
-    fname = @sprintf "energy.txt" tidx 
-    open(fname, "a") do io
+    open("energy.txt", "a") do io
         write(io, "$(tidx)\t$(ekin_ele)\t$(ekin_ion)\t$(enrg_elc)\n")
     end
 end

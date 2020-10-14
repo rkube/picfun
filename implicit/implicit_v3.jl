@@ -12,6 +12,7 @@ using StatsFuns
 using Random
 using LinearAlgebra: norm
 using NLsolve
+using Printf
 
 push!(LOAD_PATH, pwd())
 
@@ -22,10 +23,11 @@ using pic_utils: smooth, deposit
 using particles: particle, fix_position!
 using particle_push: push_v3!
 using solvers: ∇⁻²
+using diagnostics: diag_ptl, diag_energy
 
 # Time-stepping parameters
-Δt = 1e-6
-Nt = 1
+Δt = 1e-3
+Nt = 1000
 Nν = 1
 Δτ = Δt / Nν
 
@@ -45,7 +47,7 @@ zrg = (0:Nz) * zgrid.Δz
 Random.seed!(1)
 
 # Initial number of particles per cell
-particle_per_cell = 64
+particle_per_cell = 128
 num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 
@@ -58,7 +60,6 @@ ptl_pos = rand(Uniform(0, zgrid.Lz), num_ptl)
 sort!(ptl_pos)
 # Initial position for the electrons
 ptl_perturbation = rand(Uniform(-1e-2, 1e-2), num_ptl)
-
 
 # Initialize stationary electrons and ions.
 # The electron positions are perturbed slightly around the ions
@@ -97,7 +98,6 @@ function residuals!(res, E_new, E, ptlₑ, ptlᵢ, zgrid)
 # ptlᵢ: Ions at current time step
 # zgrid: Simulation Domain
 # j_avg_0: 
-    
 
     # Construct a periodic interpolator for E
     _E_per = copy(E)
@@ -133,21 +133,25 @@ function residuals!(res, E_new, E, ptlₑ, ptlᵢ, zgrid)
     for ii ∈ 1:length(res)
         res[ii] = res_new[ii]
     end
-    println("Residual norm: $(norm(res))")
+    #println("Residual norm: $(norm(res))")
 end
 
-res_func!(res_vec, E_initial) = residuals!(res_vec, E_initial, Eⁿ, ptlₑ, ptlᵢ, zgrid)
+plot(Eⁿ)
+for nn in 1:Nt
+    println("======================== $(nn)/$(Nt)===========================")
 
-max_E = max(abs.(Eⁿ)...)
+    res_func!(res_vec, E_initial) = residuals!(res_vec, E_initial, Eⁿ, ptlₑ, ptlᵢ, zgrid)
+    max_E = max(abs.(Eⁿ)...)
+    E_new = Eⁿ + rand(Uniform(-0.01 * max_E, 0.01 * max_E), length(Eⁿ))
+    result = nlsolve(res_func!, E_new; xtol=1e-3, iterations=5000)
+    plot!(result.zero)
+    println(result)
 
-E_new = Eⁿ + rand(Uniform(-0.01 * max_E, 0.01 * max_E), length(Eⁿ))
+    Eⁿ[:] = result.zero[:]
 
-plot(Eⁿ, seriestype=:scatter)
-plot!(E_new, seriestype=:scatter)
+    if mod(nn, 10) == 0
+        diag_ptl(ptlₑ, ptlᵢ, nn)
+    end
+    diag_energy(ptlₑ, ptlᵢ, Eⁿ, nn)
 
-res_new = zero(Eⁿ)
-#res_func!(res_new, E_new)
-#residuals!(res_new, E_new, Eⁿ, ptlₑ, ptlᵢ, zgrid)
-#println("New residual norm: $(norm(res_new))")
-
-result = nlsolve(res_func!, E_new; xtol=1e-4)
+end

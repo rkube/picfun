@@ -8,7 +8,8 @@
 using Interpolations
 using Plots
 using Distributions
-using StatsFuns
+#using StatsFuns
+using Statistics
 using Random
 using LinearAlgebra: norm
 using NLsolve
@@ -27,7 +28,7 @@ using diagnostics: diag_ptl, diag_energy
 
 # Time-stepping parameters
 Δt = 1e-3
-Nt = 200
+Nt = 100
 Nν = 1
 Δτ = Δt / Nν
 
@@ -87,6 +88,10 @@ smEⁿ = smooth(Eⁿ)
 ptlₑ = copy(ptlₑ₀)
 ptlᵢ = copy(ptlᵢ₀)
 
+
+plotly()
+
+
 plot(map(p -> p.pos, ptlₑ))
 plot!(map(p -> p.pos, ptlᵢ))
 
@@ -103,6 +108,8 @@ function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
 # ptlᵢ₀ : Ions at current time step
 # zgrid: Simulation Domain
 # j_avg_0:
+
+    #println("Function residuals. E_new[1] = $(E_new[1]), E[1]=$(E[1])")
 
     # Construct a periodic interpolator for E
     _E_per = copy(E)
@@ -138,37 +145,37 @@ function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ / zgrid.Δz)
     j_n12_i = deposit(ptlᵢ½, zgrid, p -> p.vel * qᵢ / zgrid.Δz)
     j_n12 = j_n12_e + j_n12_i
-    j_n12_avg = sum(j_n12) / zgrid.Lz
+    j_n12_avg = mean(j_n12)
 
     # Calculate the residual of Eq. (23)
-    res_new = ϵ₀ .* (E_new - E) ./ Δt .+ (j_n12 .- j_n12_avg)
+    res_new = ϵ₀ / Δt .* (E_new - E) .+ (smooth(j_n12) .- j_n12_avg)
     # This is a mutating function. Update the entries of res one-by-one
     for ii ∈ 1:length(res)
         res[ii] = res_new[ii]
     end
 
-    #println("Residual norm: $(norm(res))")
+    #println("----------------- Residuals: $(norm(res))")
 end
+#plot(smEⁿ)
 
-plot(Eⁿ)
-plot!(ϕⁿ)
-plot!(smEⁿ)
 
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
 
-    res_func!(res_vec, E_initial) = residuals!(res_vec, E_initial, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+    res_func!(res_vec, E_guess) = residuals!(res_vec, E_guess, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     global ptlₑ₀ = copy(ptlₑ)
     global ptlᵢ₀ = copy(ptlᵢ)
-    max_E = max(abs.(smEⁿ)...)
-    E_new = smEⁿ + rand(Uniform(-0.01 * max_E, 0.01 * max_E), length(smEⁿ))
+    delta_E = mean(abs.(smEⁿ))
+    println(smEⁿ)
+    E_new = smooth(smEⁿ + rand(Uniform(-1e-3 * delta_E, 1e-3 * delta_E), length(smEⁿ)))
     result = nlsolve(res_func!, E_new; xtol=1e-3, iterations=10000)
-    plot!(result.zero)
+    global smEⁿ[:] = smooth(result.zero[:])
+
+    #plot!(smEⁿ)
+
     println(result)
-
-    smEⁿ[:] = smooth(result.zero[:])
-
-    if mod(nn, 10) == 0
+    #println(result.iterations)
+    if mod(nn, 1) == 0
         diag_ptl(ptlₑ, ptlᵢ, nn)
     end
     diag_energy(ptlₑ, ptlᵢ, smEⁿ, nn)

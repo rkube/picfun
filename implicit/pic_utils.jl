@@ -13,8 +13,8 @@ SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
 function smooth(Q::AbstractArray{<:AbstractFloat})
   Q_sm = zeros(length(Q))
   Q_sm[2:end-1] = 0.25 * (Q[1:end-2] + 2 * Q[2:end-1] + Q[3:end])
-  Q_sm[1] = 0.5 * (Q[1] + Q[2])
-  Q_sm[end] = 0.5 * (Q[end] + Q[end-1])
+  Q_sm[1] = 0.25 * (Q[end] + 2. * Q[1] + Q[2])
+  Q_sm[end] = 0.25 * (Q[end - 1] + 2. * Q[end] + Q[1])
   return Q_sm
 end
 
@@ -83,7 +83,8 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # Add 1 since we have 1-based indexing
     last_idx = map(p -> 1 + Int(floor(p.pos / zgrid.Δz)), ptl_vec)
 
-    for idx ∈ 1:length(ptl_vec)
+    # Parallelize across threads
+    Threads.@threads for idx ∈ 1:length(ptl_vec)
         # gidx[01] serves two purposes:
         # 1.) Index grid quantities
         # 2.) Get the z-coordinate of the grid at that index.
@@ -91,6 +92,16 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
         gidx0 = last_idx[idx]
         # When wrapping at Nz, add one
         gidx1 = gidx0 == zgrid.Nz ? 1 : gidx0 + 1
+        left_val = b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)
+        # Use gidx0 to calculate right_val instead of gidx1.
+        # This captures the case, where gidx1 is 0, at the right side of the domain.
+        right_val = b1((gidx0) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)
+        #println("idx = $(idx), sum=$(left_val+right_val), left_val=$(left_val), right_val=$(right_val)")
+        if( abs(left_val + right_val - 1.0) > 1e-6)
+            println("Conservation requirement broken")
+            println("idx = $(idx), sum=$(left_val+right_val), left_val=$(left_val), right_val=$(right_val), gidx0=$(gidx0), gidx1=$(gidx1), x=$(ptl_vec[idx].pos)")
+            break
+        end
         S[gidx0] += b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
         S[gidx1] += b1((gidx1 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
     end

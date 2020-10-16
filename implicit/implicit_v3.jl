@@ -1,4 +1,4 @@
-#  Implementation of the implicit scheme presented in 
+#  Implementation of the implicit scheme presented in
 # G. Chen et al. Journ., Comp. Phys 230 7018 (2011).
 #
 #
@@ -27,7 +27,7 @@ using diagnostics: diag_ptl, diag_energy
 
 # Time-stepping parameters
 Δt = 1e-3
-Nt = 1000
+Nt = 200
 Nν = 1
 Δτ = Δt / Nν
 
@@ -52,52 +52,57 @@ num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 
 # Initialize  electron and ion population
-ptlᵢ = Array{particle}(undef, num_ptl)
-ptlₑ = Array{particle}(undef, num_ptl)
+ptlᵢ₀ = Array{particle}(undef, num_ptl)
+ptlₑ₀ = Array{particle}(undef, num_ptl)
 
 # Initial position for the ions
 ptl_pos = rand(Uniform(0, zgrid.Lz), num_ptl)
 sort!(ptl_pos)
 # Initial position for the electrons
-ptl_perturbation = rand(Uniform(-1e-2, 1e-2), num_ptl)
+ptl_perturbation = rand(Uniform(-1e-3, 1e-3), num_ptl)
 
 # Initialize stationary electrons and ions.
 # The electron positions are perturbed slightly around the ions
 for idx ∈ 1:num_ptl
-    ptlᵢ[idx] = particle(ptl_pos[idx], 0.0)
-    ptlₑ[idx] = particle(ptl_pos[idx] + ptl_perturbation[idx], 0.0)
-    fix_position!(ptlₑ[idx], zgrid.Lz)
+    ptlᵢ₀[idx] = particle(ptl_pos[idx], 0.0)
+    ptlₑ₀[idx] = particle(ptl_pos[idx] + ptl_perturbation[idx], 0.0)
+    fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
-j_avg_0 = sum(deposit(ptlₑ, zgrid, p -> p.vel * qₑ / zgrid.Δz)) / zgrid.Lz
+j_avg_0 = sum(deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ / zgrid.Δz)) / zgrid.Lz
 
 # deposit particle density on the grid
-nₑ = deposit(ptlₑ, zgrid, p -> 1.)
-nᵢ = deposit(ptlᵢ, zgrid, p -> 1.)
+nₑ = deposit(ptlₑ₀, zgrid, p -> 1.)
+nᵢ = deposit(ptlᵢ₀, zgrid, p -> 1.)
 ρⁿ = (nᵢ - nₑ) / ϵ₀
 ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
 # Calculate initial electric field with centered difference stencil
 Eⁿ = zeros(Nz)
-Eⁿ[1] = (ϕⁿ[2] - ϕⁿ[end]) * 0.5 / zgrid.Δz
-Eⁿ[2:end-1] = (ϕⁿ[1:end-2] - ϕⁿ[3:end]) * 0.5 / zgrid.Δz
-Eⁿ[end] = (ϕⁿ[end-1] - ϕⁿ[1]) * 0.5 / zgrid.Δz
-
-ptlₑ₀ = copy(ptlₑ)
-ptlᵢ₀ = copy(ptlᵢ)
-
-plot(map(p -> p.pos, ptlₑ), seriestype=:scatter)
-plot!(map(p -> p.pos, ptlᵢ), seriestype=:scatter)
+Eⁿ[1] = -1. * (ϕⁿ[2] - ϕⁿ[end]) / 2. / zgrid.Δz
+Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
+Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
+smEⁿ = smooth(Eⁿ)
 
 
-# Define a 
-function residuals!(res, E_new, E, ptlₑ, ptlᵢ, zgrid)
-# Calculates the residuals, given a guess for the electric
+ptlₑ = copy(ptlₑ₀)
+ptlᵢ = copy(ptlᵢ₀)
+
+plot(map(p -> p.pos, ptlₑ))
+plot!(map(p -> p.pos, ptlᵢ))
+
+plot(collect(0:zgrid.Δz:zgrid.Lz-0.001), ϕⁿ)
+plot!(collect(0:zgrid.Δz:zgrid.Lz-0.001), Eⁿ)
+plot!(collect(0:zgrid.Δz:zgrid.Lz-0.001), smEⁿ)
+
+# Define a
+function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+# Ca5lculates the residuals, given a guess for the electric
 # E_new: New electric field
-# E: electric field from current time step 
-# ptlₑ : Electrons at current time step
-# ptlᵢ: Ions at current time step
+# E: electric field from current time step
+# ptlₑ₀ : Electrons at current time step
+# ptlᵢ₀ : Ions at current time step
 # zgrid: Simulation Domain
-# j_avg_0: 
+# j_avg_0:
 
     # Construct a periodic interpolator for E
     _E_per = copy(E)
@@ -113,11 +118,19 @@ function residuals!(res, E_new, E, ptlₑ, ptlᵢ, zgrid)
     itp2 = Interpolations.scale(itp, zrg)
     ip_Enew = extrapolate(itp2, Periodic())
 
-    # Allocate new vector electrons and ions at half time-step
-    ptlₑ½ = Array{particle}(undef, num_ptl)
-    ptlᵢ½ = Array{particle}(undef, num_ptl)
+    # Allocate vector for particle position half time-step
+    num_ptl = length(ptlₑ₀)
+    #ptlₑ½ = Array{particle}(undef, num_ptl)
+    #ptlᵢ½ = Array{particle}(undef, num_ptl)
+    ptlₑ½ = copy(ptlₑ)
+    ptlᵢ½ = copy(ptlₑ)
+
+    #println("residuals!: ptlₑ[1] = $(ptlₑ[1])")
+    #println("residuals!: ptlₑ½[1] = $(ptlₑ½[1])")
+    #println("residuals!: ptl₀[1] = $(ptl₀[1])")
 
     # Particle enslavement: Push particles into a consistent state
+    # ptlₑ and ptlᵢ will be updated.
     push_v3!(ptlₑ, ptlₑ₀, ptlₑ½, qₑ, mₑ, ϵᵣ, ϵₐ, zgrid, Δt, ip_Enew, ip_E)
     push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mᵢ, ϵᵣ, ϵₐ, zgrid, Δt, ip_Enew, ip_E)
 
@@ -133,25 +146,31 @@ function residuals!(res, E_new, E, ptlₑ, ptlᵢ, zgrid)
     for ii ∈ 1:length(res)
         res[ii] = res_new[ii]
     end
+
     #println("Residual norm: $(norm(res))")
 end
 
 plot(Eⁿ)
+plot!(ϕⁿ)
+plot!(smEⁿ)
+
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
 
-    res_func!(res_vec, E_initial) = residuals!(res_vec, E_initial, Eⁿ, ptlₑ, ptlᵢ, zgrid)
-    max_E = max(abs.(Eⁿ)...)
-    E_new = Eⁿ + rand(Uniform(-0.01 * max_E, 0.01 * max_E), length(Eⁿ))
-    result = nlsolve(res_func!, E_new; xtol=1e-3, iterations=5000)
+    res_func!(res_vec, E_initial) = residuals!(res_vec, E_initial, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+    global ptlₑ₀ = copy(ptlₑ)
+    global ptlᵢ₀ = copy(ptlᵢ)
+    max_E = max(abs.(smEⁿ)...)
+    E_new = smEⁿ + rand(Uniform(-0.01 * max_E, 0.01 * max_E), length(smEⁿ))
+    result = nlsolve(res_func!, E_new; xtol=1e-3, iterations=10000)
     plot!(result.zero)
     println(result)
 
-    Eⁿ[:] = result.zero[:]
+    smEⁿ[:] = smooth(result.zero[:])
 
     if mod(nn, 10) == 0
         diag_ptl(ptlₑ, ptlᵢ, nn)
     end
-    diag_energy(ptlₑ, ptlᵢ, Eⁿ, nn)
+    diag_energy(ptlₑ, ptlᵢ, smEⁿ, nn)
 
 end

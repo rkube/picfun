@@ -65,7 +65,8 @@ function push_v2!(ptlₑ::Array{particle},
                   ptlₑ₀::Array{particle},
                   ptlₑ½::Array{particle},
                   ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
-   for ele ∈ 1:length(ptlₑ)
+   # Parallelize this across threads
+   Threads.@threads for ele ∈ 1:length(ptlₑ)
       # Initial guess of new position and velocity before we start iterations.
       x̃ = ptlₑ[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]
       #println("Orignial position: $(ptlₑ[ele].pos), Starting guess: $(x̃). Original velocity: $(ptlₑ[ele].vel)")
@@ -121,13 +122,15 @@ Basically the same as v2, but works for both ions and electrons
 function push_v3!(ptl::Array{particle},
                   ptl₀::Array{particle},
                   ptl½::Array{particle},
-                  q, m, 
+                  q, m,
                   ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
-   for ele ∈ 1:length(ptl)
-      # Initial guess of new position and velocity before we start iterations.
-      x̃ = ptl[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]
-      num_it_ptl = 0
-      ptl_converged=false
+
+  # Initial guess of new position before we start iterations.
+  x̃ = map(p -> p.pos, ptl₀) + rand(Uniform(-0.1, 0.1), length(ptl₀))
+  for ele ∈ 1:length(ptl)
+     #x̃ = ptl₀[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]
+     num_it_ptl = 0
+     ptl_converged=false
       # Then: iterate the particle's coordinates until convergence
       # Note: We don't need to worry moving the particle out of bounds here since the
       # electric field interpolator is periodic. And distance measuring between particle
@@ -135,7 +138,7 @@ function push_v3!(ptl::Array{particle},
       # iteration has converged.
       while(ptl_converged == false)
            # Calculate x_p^{n+1/2}
-           x_pⁿ⁺½ =  0.5 * (ptl₀[ele].pos + x̃)
+           x_pⁿ⁺½ =  0.5 * (ptl₀[ele].pos + x̃[ele])
            # Calculate v_p^{n+1}
            v_pⁿ⁺¹= ptl₀[ele].vel + Δt * q * 0.5 * (ip_Ẽ(x_pⁿ⁺½) + ip_Eⁿ(x_pⁿ⁺½)) / m
            # Calculate v_p^{n+1/2}
@@ -145,7 +148,7 @@ function push_v3!(ptl::Array{particle},
            #println("*** it $(num_it_ptl): x_pⁿ⁺¹=$(x_pⁿ⁺¹), v_pⁿ⁺¹=$(v_pⁿ⁺¹)")
 
            # Check convergence
-           if ((abs(x_pⁿ⁺¹ - x̃) ≤ ϵᵣ * abs(x_pⁿ⁺¹) + ϵₐ))
+           if ((abs(x_pⁿ⁺¹ - x̃[ele]) ≤ ϵᵣ * abs(x_pⁿ⁺¹) + ϵₐ))
                #println("*** Starting point: $(ptl[ele].pos), Guess: $(x̃), Converged to: $(x_pⁿ⁺¹) Converged: |x̃ - x_pⁿ⁺¹| = $(abs(x_pⁿ⁺¹ - x̃)), $(num_it_ptl) iterations")
                ptl_converged = true
                ptl[ele].pos = x_pⁿ⁺¹
@@ -153,7 +156,7 @@ function push_v3!(ptl::Array{particle},
                break
            end
            # Let x_pⁿ⁺¹ be the new guess.
-           x̃ = x_pⁿ⁺¹
+           x̃[ele] = x_pⁿ⁺¹
            num_it_ptl += 1
            if(num_it_ptl > 1000)
                #println("Picard: Iterations exceeded $(num_it_ptl), terminating")

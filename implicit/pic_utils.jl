@@ -102,8 +102,8 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
             println("idx = $(idx), sum=$(left_val+right_val), left_val=$(left_val), right_val=$(right_val), gidx0=$(gidx0), gidx1=$(gidx1), x=$(ptl_vec[idx].pos)")
             break
         end
-        S[gidx0] += b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
-        S[gidx1] += b1((gidx1 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
+        S[gidx0] += left_val * fun(ptl_vec[idx]) #b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
+        S[gidx1] += right_val * fun(ptl_vec[idx]) #b1(gidx0 * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz) * fun(ptl_vec[idx])
     end
     return(S)
 end

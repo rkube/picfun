@@ -9,6 +9,8 @@ using Printf
 using particles: particle
 using units: mₑ, mᵢ, ϵ₀
 using grids: grid_1d
+using solvers: ∇⁻²
+using pic_utils: deposit, smooth
 
 function diag_ptl(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, tidx)
     # Write particle kinetics to file
@@ -44,6 +46,59 @@ function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::
     end
 end
 
+function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zgrid, tidx)
+    """Calculate fields and write them to file"""
 
+    nₑ = deposit(ptlₑ, zgrid, p -> 1.)
+    nᵢ = deposit(ptlᵢ, zgrid, p -> 1.)
+    ρⁿ = (nᵢ - nₑ) / ϵ₀
+    ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+    # Calculate initial electric field with centered difference stencil
+    Eⁿ = zeros(zgrid.Nz)
+    Eⁿ[1] = -1. * (ϕⁿ[2] - ϕⁿ[end]) / 2. / zgrid.Δz
+    Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
+    Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
+    smEⁿ = smooth(Eⁿ)
+
+    open("ni.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(nᵢ)
+            write(io, "$(nᵢ[i]) ")
+        end
+        write(io, "\n")
+    end
+
+    open("ne.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(nₑ)
+            write(io, "$(nₑ[i]) ")
+        end
+        write(io, "\n")
+    end
+
+    open("rho.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(ρⁿ)
+            write(io, "$(ρⁿ[i]) ")
+        end
+        write(io, "\n")
+    end
+
+    open("phi.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(ϕⁿ)
+            write(io, "$(ϕⁿ[i]) ")
+        end
+        write(io, "\n")
+    end
+
+    open("E.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(smEⁿ)
+            write(io, "$(smEⁿ[i]) ")
+        end
+        write(io, "\n")
+    end
+end #function diag_fields
 
 end # module diagnostics

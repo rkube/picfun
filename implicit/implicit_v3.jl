@@ -24,11 +24,12 @@ using pic_utils: smooth, deposit
 using particles: particle, fix_position!
 using particle_push: push_v3!
 using solvers: ∇⁻²
-using diagnostics: diag_ptl, diag_energy
+using diagnostics: diag_ptl, diag_energy, diag_fields
+
 
 # Time-stepping parameters
 Δt = 1e-3
-Nt = 100
+Nt = 1000
 Nν = 1
 Δτ = Δt / Nν
 
@@ -48,7 +49,7 @@ zrg = (0:Nz) * zgrid.Δz
 Random.seed!(1)
 
 # Initial number of particles per cell
-particle_per_cell = 128
+particle_per_cell = 256
 num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 
@@ -65,8 +66,9 @@ ptl_perturbation = rand(Uniform(-1e-3, 1e-3), num_ptl)
 # Initialize stationary electrons and ions.
 # The electron positions are perturbed slightly around the ions
 for idx ∈ 1:num_ptl
-    ptlᵢ₀[idx] = particle(ptl_pos[idx], 0.0)
-    ptlₑ₀[idx] = particle(ptl_pos[idx] + ptl_perturbation[idx], 0.0)
+    x0 = ptl_pos[idx]
+    ptlᵢ₀[idx] = particle(x0, 0.0)
+    ptlₑ₀[idx] = particle(x0 + 1e-4 .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
@@ -79,7 +81,7 @@ nᵢ = deposit(ptlᵢ₀, zgrid, p -> 1.)
 ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
 # Calculate initial electric field with centered difference stencil
 Eⁿ = zeros(Nz)
-Eⁿ[1] = -1. * (ϕⁿ[2] - ϕⁿ[end]) / 2. / zgrid.Δz
+Eⁿ[1] = -1. * (ϕⁿ[end] - ϕⁿ[2]) / 2. / zgrid.Δz
 Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
 Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
 smEⁿ = smooth(Eⁿ)
@@ -88,20 +90,11 @@ smEⁿ = smooth(Eⁿ)
 ptlₑ = copy(ptlₑ₀)
 ptlᵢ = copy(ptlᵢ₀)
 
-
-plotly()
-
-
-plot(map(p -> p.pos, ptlₑ))
-plot!(map(p -> p.pos, ptlᵢ))
-
-plot(collect(0:zgrid.Δz:zgrid.Lz-0.001), ϕⁿ)
-plot!(collect(0:zgrid.Δz:zgrid.Lz-0.001), Eⁿ)
-plot!(collect(0:zgrid.Δz:zgrid.Lz-0.001), smEⁿ)
+diag_fields(ptlₑ, ptlᵢ, zgrid, 0)
 
 # Define a
 function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
-# Ca5lculates the residuals, given a guess for the electric
+# Calculates the residuals, given a guess for the electric
 # E_new: New electric field
 # E: electric field from current time step
 # ptlₑ₀ : Electrons at current time step
@@ -179,5 +172,5 @@ for nn in 1:Nt
         diag_ptl(ptlₑ, ptlᵢ, nn)
     end
     diag_energy(ptlₑ, ptlᵢ, smEⁿ, nn)
-
+    diag_fields(ptlₑ, ptlᵢ, zgrid, nn)
 end

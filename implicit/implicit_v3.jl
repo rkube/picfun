@@ -28,7 +28,7 @@ using diagnostics: diag_ptl, diag_energy, diag_fields
 
 
 # Time-stepping parameters
-Δt = 1e-3
+Δt = 1e-4
 Nt = 1000
 Nν = 1
 Δτ = Δt / Nν
@@ -49,7 +49,7 @@ zrg = (0:Nz) * zgrid.Δz
 Random.seed!(1)
 
 # Initial number of particles per cell
-particle_per_cell = 256
+particle_per_cell = 128
 num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 
@@ -58,10 +58,11 @@ ptlᵢ₀ = Array{particle}(undef, num_ptl)
 ptlₑ₀ = Array{particle}(undef, num_ptl)
 
 # Initial position for the ions
-ptl_pos = rand(Uniform(0, zgrid.Lz), num_ptl)
-sort!(ptl_pos)
+#ptl_pos = rand(Uniform(0, zgrid.Lz), num_ptl)
+#sort!(ptl_pos)
 # Initial position for the electrons
-ptl_perturbation = rand(Uniform(-1e-3, 1e-3), num_ptl)
+#ptl_perturbation = rand(Uniform(-1e-3, 1e-3), num_ptl)
+ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 
 # Initialize stationary electrons and ions.
 # The electron positions are perturbed slightly around the ions
@@ -146,10 +147,7 @@ function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     for ii ∈ 1:length(res)
         res[ii] = res_new[ii]
     end
-
-    #println("----------------- Residuals: $(norm(res))")
 end
-#plot(smEⁿ)
 
 
 for nn in 1:Nt

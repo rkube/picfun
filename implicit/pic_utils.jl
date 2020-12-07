@@ -27,7 +27,7 @@ b1(x) = { x+1,   if -1 < x < 0
 """ ->
 function b1(z, zp, Δz)
     arg = (z - zp) / Δz
-    if(abs(arg) >= 1)
+    if(abs(arg) > 1)
         return (0.0)
     end
 
@@ -83,8 +83,9 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # Add 1 since we have 1-based indexing
     last_idx = map(p -> 1 + Int(floor(p.pos / zgrid.Δz)), ptl_vec)
 
-    # Parallelize across threads
-    Threads.@threads for idx ∈ 1:length(ptl_vec)
+    # Don't parallelize just yet. This leads to faulty results. May have to use atomics
+    # somewhere in here?
+    for idx ∈ 1:length(ptl_vec)
         # gidx[01] serves two purposes:
         # 1.) Index grid quantities
         # 2.) Get the z-coordinate of the grid at that index.
@@ -95,8 +96,8 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
         left_val = b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)
         # Use gidx0 to calculate right_val instead of gidx1.
         # This captures the case, where gidx1 is 0, at the right side of the domain.
-        right_val = b1((gidx0) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)
-        #println("idx = $(idx), sum=$(left_val+right_val), left_val=$(left_val), right_val=$(right_val)")
+        right_val = b1(gidx0 * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)
+        #println("idx = $(idx), gidx0 = $(gidx0), gidx1 = $(gidx1), left_val=$(left_val), right_val=$(right_val)")
         if( abs(left_val + right_val - 1.0) > 1e-6)
             println("Conservation requirement broken")
             println("idx = $(idx), sum=$(left_val+right_val), left_val=$(left_val), right_val=$(right_val), gidx0=$(gidx0), gidx1=$(gidx1), x=$(ptl_vec[idx].pos)")

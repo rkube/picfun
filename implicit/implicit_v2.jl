@@ -68,12 +68,12 @@ Eⁿ[1] = (ϕⁿ[2] - ϕⁿ[end]) * 0.5 / zgrid.Δz
 Eⁿ[2:end-1] = (ϕⁿ[1:end-2] - ϕⁿ[3:end]) * 0.5 / zgrid.Δz
 Eⁿ[end] = (ϕⁿ[end-1] - ϕⁿ[1]) * 0.5 / zgrid.Δz
 
-ptlₑ₀ = copy(ptlₑ)
-ptlᵢ₀ = copy(ptlᵢ)
+ptlₑ₀ = deepcopy(ptlₑ)
+ptlᵢ₀ = deepcopy(ptlᵢ)
 ptlₑ½ = Array{particle}(undef, num_ptl)
 
 # Construct a periodic interpolator for E₀
-_E_per = copy(Eⁿ)
+_E_per = deepcopy(Eⁿ)
 push!(_E_per, _E_per[1])
 itp = interpolate(_E_per, BSpline(Linear()))
 itp2 = Interpolations.scale(itp, zrg)
@@ -88,7 +88,7 @@ ip_Eⁿ = extrapolate(itp2, Periodic())
 
 # Guess the next electric field
 Ẽ = Eⁿ + rand(Uniform(-1e-2, 1e-2), Nz)
-_E_per = copy(Ẽ)
+_E_per = deepcopy(Ẽ)
 push!(_E_per, _E_per[1])
 itp = interpolate(_E_per, BSpline(Linear()))
 itp2 = Interpolations.scale(itp, zrg)
@@ -125,7 +125,7 @@ while(E_converged == false)
 
     # Update E_new to be Ẽ
     global Ẽ[:] = E_new[:]
-    local _E_per = copy(E_new)
+    local _E_per = deepcopy(E_new)
     push!(_E_per, _E_per[1])
     local itp = interpolate(_E_per, BSpline(Linear()))
     local itp2 = Interpolations.scale(itp, zrg)

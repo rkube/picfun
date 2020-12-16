@@ -3,6 +3,7 @@
 module solvers
 
 using FFTW: fft, ifft
+using LinearAlgebra: norm
 using grids: grid_1d
 export ∇⁻²
 
@@ -24,6 +25,26 @@ function ∇⁻²(y::Array{Float64}, zgrid::grid_1d)
 	return d2y
 end
 
+
+# """Calculcates the directional derivative of a vector."""
+# function dirder(G, v, x0, G0, ϵ)
+# 	# G: Callable
+# 	# v: direction
+# 	# x0: point where G was last evaluated at
+# 	# G0: G(x0)
+# 	# ϵ: Small but finite
+
+# 	# If norm(v) < 1e-16: return zero vector
+# 	if (norm(v) < 1e-16)
+# 		result = zeros(length(v))
+# 		return result 
+# 	end
+
+# 	# Re-scale ϵ
+# 	G1 = G(x0 .+ ϵ .* v)
+# 	result = (G1 .- G0) ./ ϵ
+# 	return result
+# end
 
 end # module
 # End of file solvers.jl

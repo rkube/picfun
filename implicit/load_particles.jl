@@ -67,7 +67,7 @@ function load_pert_x(num_ptl, L, ϵ, k, vth)
     # end
     # dx = zeros(num_ptl)
     # sol = nlsolve((dx, x) -> f!(dx, x, r, ϵ, k), zeros(num_ptl))
-    # ptl_z = copy(sol.zero)
+    # ptl_z = deepcopy(sol.zero)
     # sort!(ptl_z)
 
     # Generate a vector of particles

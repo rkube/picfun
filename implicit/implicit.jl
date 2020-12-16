@@ -50,8 +50,8 @@ for idx ∈ 1:num_ptl
     ptl_i[idx] = particle(ptl_i_z[idx], 0.0)
 end
 
-ptl_e0 = copy(ptl_e)
-ptl_i0 = copy(ptl_i)
+ptl_e0 = deepcopy(ptl_e)
+ptl_i0 = deepcopy(ptl_i)
 
 # Initialize the electric field
 # The output after one time-step
@@ -67,7 +67,7 @@ E_i_sm = smooth(E_initial)
 # https://github.com/JuliaMath/Interpolations.jl/issues/326
 zz = (0:1:Nz) * zgrid.Δz
 println("zz = ", zz)
-_E_per = copy(E_i_sm)
+_E_per = deepcopy(E_i_sm)
 push!(_E_per, _E_per[1])
 itp = interpolate(_E_per, BSpline(Linear()))
 itp2 = Interpolations.scale(itp, zz)

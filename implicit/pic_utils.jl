@@ -48,7 +48,7 @@ function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::A
     # and the next index.
     # Now, when last_idx is just the last element of _zgrid, we need to have an element to the right.
     # So here we just pad.
-    zgrid = copy(_zgrid)
+    zgrid = deepcopy(_zgrid)
     push!(zgrid, zgrid[end] + Δz[end])
     # Find the indices of the grid points, where the current zp is less then 1 dz away
     last_idx = findall(zgrid .< zp)[end]

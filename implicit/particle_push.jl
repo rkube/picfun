@@ -126,7 +126,7 @@ function push_v3!(ptl::Array{particle},
                   ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
 
   # Initial guess of new position before we start iterations.
-  x̃ = map(p -> mod(p.pos + p.vel * Δt, zgrid.Lz), ptl₀)
+  x̃ = map(p -> mod(p.pos + p.vel * 0.001 * Δt, zgrid.Lz), ptl₀)
   
   for ele ∈ 1:length(ptl)
      #x̃ = ptl₀[ele].pos + rand(Uniform(-0.1, 0.1), 1)[1]

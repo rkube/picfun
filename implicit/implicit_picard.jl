@@ -2,13 +2,12 @@
 # G. Chen et al. Journ., Comp. Phys 230 7018 (2011).
 #
 #
-# This builds on v2, but uses NLSolve to find the electric field update
+# This builds on v3, but uses Picard iteration to solve the electric field update.
 
 
 using Interpolations
 using Plots
 using Distributions
-#using StatsFuns
 using Statistics
 using Random
 using LinearAlgebra: norm
@@ -20,7 +19,6 @@ push!(LOAD_PATH, pwd())
 using units: qₑ, qᵢ, mᵢ, mₑ, n₀
 using grids: grid_1d, init_grid
 using pic_utils: smooth, deposit
-#using load_particles: load_pert_x
 using particles: particle, fix_position!
 using particle_push: push_v3!
 using solvers: ∇⁻²
@@ -30,7 +28,7 @@ using diagnostics: diag_ptl, diag_energy, diag_fields
 # Time-stepping parameters
 # Time is in units of ωpe
 Δt = 1e-1
-Nt = 5
+Nt = 1000
 Nν = 1
 Δτ = Δt / Nν
 
@@ -42,7 +40,6 @@ Nz = 32
 # Relative and absolute tolerance for convergence of Picard iteration
 ϵᵣ = 1e-6
 ϵₐ = 1e-10
-
 
 # Initialize the grid
 zgrid = init_grid(Lz, Nz)
@@ -60,11 +57,7 @@ println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 ptlᵢ₀ = Array{particle}(undef, num_ptl)
 ptlₑ₀ = Array{particle}(undef, num_ptl)
 
-# Initial position for the ions
-#ptl_pos = rand(Uniform(0, zgrid.Lz), num_ptl)
-#sort!(ptl_pos)
-# Initial position for the electrons
-#ptl_perturbation = rand(Uniform(-1e-3, 1e-3), num_ptl)
+# Initial position for electrons and ions
 ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 
 # Initialize stationary electrons and ions.
@@ -72,7 +65,7 @@ ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
-    ptlₑ₀[idx] = particle(x0 + 1e-4 .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
+    ptlₑ₀[idx] = particle(x0 + 1e-1 .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
@@ -97,14 +90,12 @@ ptlᵢ = deepcopy(ptlᵢ₀)
 diag_fields(ptlₑ, ptlᵢ, zgrid, 0)
 
 # Define a
-function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+function G(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
 # Calculates the residuals, given a guess for the electric
 # E_new: New electric field
 # E: electric field from current time step
 # ptlₑ₀ : Electrons at current time step
 # ptlᵢ₀ : Ions at current time step
-# ptlₑ: Updated electron particles
-# ptlᵢ: Updated ion particles
 # zgrid: Simulation Domain
 # j_avg_0:
 
@@ -141,30 +132,54 @@ function residuals!(res, E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     j_n12_avg = mean(j_n12)
 
     # Calculate the residual of Eq. (23)
-    res_new = (E_new - E) ./ Δt .+ (smooth(j_n12) .- j_n12_avg)
-    # This is a mutating function. Update the entries of res one-by-one
-    for ii ∈ 1:length(res)
-        res[ii] = res_new[ii]
-    end
+    residuals = (E_new - E) ./ Δt .+ (smooth(j_n12) .- j_n12_avg)
+
+    return residuals
 end
 
 
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
+  
+    # Picard iteration to get electric field
+    E_converged = false
+    num_it = 0
 
-    res_func!(res_vec, E_guess) = residuals!(res_vec, E_guess, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
-    global ptlₑ₀ = copy(ptlₑ)
-    global ptlᵢ₀ = copy(ptlᵢ)
+    global ptlₑ₀ = deepcopy(ptlₑ)
+    global ptlᵢ₀ = deepcopy(ptlᵢ)
+
+    # Guess a new E field.
     delta_E = std(abs.(smEⁿ))
-    println(smEⁿ)
-    E_new = smooth(smEⁿ + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(smEⁿ)))
-    result = nlsolve(res_func!, E_new; xtol=1e-4, iterations=10000)
-    global smEⁿ[:] = smooth(result.zero[:])
+    Ẽ = smooth(smEⁿ + rand(Uniform(-1e-3 * delta_E, 1e-3 * delta_E), length(smEⁿ)))
 
-    println(result)
+    res_vec = similar(Ẽ)
 
-    #println(result.zero .- E_new)
-    println(result.iterations)
+    while (E_converged == false)
+        println("-------------------------- it $(num_it)/10 -----------------------------")
+
+        # Updates residuals
+        res_vec = G(Ẽ, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+
+        # Break if residuals are stationary
+        if (norm(res_vec) ≤ ϵᵣ * norm(smEⁿ) + ϵₐ)
+            E_converged = true
+        end
+
+        # Update guessed E-field
+        Ẽ -= Δt .* res_vec
+
+        # Break if too many iterations
+        num_it += 1
+        if (num_it > 40)
+            E_converged = true
+            break
+        end
+    end
+    println("Converged after $(num_it) iterations: Residual = $(norm(res_vec))")
+    # Update smEⁿ with new electric field
+    global smEⁿ[:] = smooth(Ẽ)
+    
+
     if mod(nn, 1) == 0
         diag_ptl(ptlₑ, ptlᵢ, nn)
     end

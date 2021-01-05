@@ -29,7 +29,7 @@ function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::
     ekin_ele = sum(map(p -> p.vel * p.vel * mₑ * 0.5 / n₀, ptlₑ))
     ekin_ion = sum(map(p -> p.vel * p.vel * mᵢ * 0.5 / n₀, ptlᵢ))
     # Energy in the electric field
-    enrg_elc = n₀ * 0.5  * sum(E .* E) * zgrid.Δz
+    enrg_elc = n₀ * 0.5 * sum(E .* E) * zgrid.Δz
 
     open("Efield.txt", "a") do io
         write(io, "$(tidx)\t")
@@ -53,7 +53,7 @@ function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zg
     ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
     # Calculate initial electric field with centered difference stencil
     Eⁿ = zeros(zgrid.Nz)
-    Eⁿ[1] = -1. * (ϕⁿ[2] - ϕⁿ[end]) / 2. / zgrid.Δz
+    Eⁿ[1] = -1. * (ϕⁿ[end] - ϕⁿ[2]) / 2. / zgrid.Δz
     Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
     Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
     smEⁿ = smooth(Eⁿ)
@@ -91,6 +91,14 @@ function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zg
     end
 
     open("E.txt", "a") do io
+        write(io, "$(tidx)\t")
+        for i ∈ 1:length(Eⁿ)
+            write(io, "$(Eⁿ[i]) ")
+        end
+        write(io, "\n")
+    end
+
+    open("smE.txt", "a") do io
         write(io, "$(tidx)\t")
         for i ∈ 1:length(smEⁿ)
             write(io, "$(smEⁿ[i]) ")

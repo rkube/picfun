@@ -38,8 +38,8 @@ Lz = 2π
 Nz = 32
 
 # Relative and absolute tolerance for convergence of Picard iteration
-ϵᵣ = 1e-6
-ϵₐ = 1e-10
+ϵᵣ = 1e-3
+ϵₐ = 1e-8
 
 # Initialize the grid
 zgrid = init_grid(Lz, Nz)
@@ -65,11 +65,11 @@ ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
-    ptlₑ₀[idx] = particle(x0 + 1e-1 .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
+    ptlₑ₀[idx] = particle(x0 + 1e-1 .* cos(x0) .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
-j_avg_0 = sum(deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ / zgrid.Δz / n₀)) / zgrid.Lz
+j_avg_0 = sum(deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ)) / zgrid.Lz / n₀
 
 # deposit particle density on the grid
 nₑ = deposit(ptlₑ₀, zgrid, p -> 1. / n₀)
@@ -82,7 +82,6 @@ Eⁿ[1] = -1. * (ϕⁿ[end] - ϕⁿ[2]) / 2. / zgrid.Δz
 Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
 Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
 smEⁿ = smooth(Eⁿ)
-
 
 ptlₑ = deepcopy(ptlₑ₀)
 ptlᵢ = deepcopy(ptlᵢ₀)
@@ -126,8 +125,8 @@ function G(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mᵢ / mₑ, ϵᵣ, ϵₐ, zgrid, Δt, ip_Enew, ip_E)
 
     # Calculate j_i^{n+1/2}
-    j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ / zgrid.Δz / n₀)
-    j_n12_i = deposit(ptlᵢ½, zgrid, p -> p.vel * qᵢ / zgrid.Δz / n₀)
+    j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ) ./ n₀ ./ zgrid.Δz
+    j_n12_i = deposit(ptlᵢ½, zgrid, p -> p.vel * qᵢ) ./ n₀ ./ zgrid.Δz
     j_n12 = j_n12_e + j_n12_i
     j_n12_avg = mean(j_n12)
 
@@ -150,15 +149,15 @@ for nn in 1:Nt
 
     # Guess a new E field.
     delta_E = std(abs.(smEⁿ))
-    Ẽ = smooth(smEⁿ + rand(Uniform(-1e-3 * delta_E, 1e-3 * delta_E), length(smEⁿ)))
+    E_guess = smooth(smEⁿ + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(smEⁿ)))
 
-    res_vec = similar(Ẽ)
+    # res_vec = similar(Ẽ)
 
     while (E_converged == false)
-        println("-------------------------- it $(num_it)/10 -----------------------------")
-
+        println("-------------------------- it $(num_it)/40 -----------------------------")
         # Updates residuals
-        res_vec = G(Ẽ, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+        res_vec = G(E_guess, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
+        println("                                             Residual = $(norm(res_vec)). norm(smEⁿ) = $(norm(smEⁿ))  ")
 
         # Break if residuals are stationary
         if (norm(res_vec) ≤ ϵᵣ * norm(smEⁿ) + ϵₐ)
@@ -166,18 +165,16 @@ for nn in 1:Nt
         end
 
         # Update guessed E-field
-        Ẽ -= Δt .* res_vec
+        E_guess -= smooth(Δt .* res_vec)
 
         # Break if too many iterations
         num_it += 1
-        if (num_it > 40)
+        if (num_it > 100)
             E_converged = true
-            break
         end
     end
-    println("Converged after $(num_it) iterations: Residual = $(norm(res_vec))")
     # Update smEⁿ with new electric field
-    global smEⁿ[:] = smooth(Ẽ)
+    global smEⁿ[:] = E_guess
     
 
     if mod(nn, 1) == 0

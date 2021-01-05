@@ -6,9 +6,9 @@ module particles
 
 export particle, fix_position!
 
-mutable struct particle
-    pos::Float64
-    vel::Float64
+mutable struct particle{T<:AbstractFloat}
+    pos::T
+    vel::T
 end
 
 function fix_position!(particle, L)

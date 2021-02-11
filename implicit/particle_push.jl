@@ -9,7 +9,6 @@ using grids: grid_1d
 using particles: particle, fix_position!
 using Distributions
 
-
 export push_v3!
 
 
@@ -32,20 +31,16 @@ Iteratively determine new particle position and velocity given a guess Ẽ.
 - `ip_Eⁿ::Function(Float)`: interpoloates electric field at tⁿ on domain.
 
 
-
 """
 function push_v3!(ptl::Array{particle},
                   ptl₀::Array{particle},
                   ptl½::Array{particle},
                   q, m_over_mₑ,
                   ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
-
-    
-
     # Initial guess of new position before we start Picard iteration.
     x̃ = map(p -> mod(p.pos + p.vel * 0.1 * Δt, zgrid.Lz), ptl₀)
   
-    for ele ∈ 1:length(ptl)
+    Threads.@threads for ele ∈ 1:length(ptl)
         num_it_ptl = 0
         ptl_converged=false
         # Then: iterate the particle's coordinates until convergence

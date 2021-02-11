@@ -21,21 +21,22 @@ using grids: grid_1d, init_grid
 using pic_utils: smooth, deposit
 using particles: particle, fix_position!
 using particle_push: push_v3!
-using solvers: ∇⁻²
+using solvers: ∇⁻², invert_laplace
 using diagnostics: diag_ptl, diag_energy, diag_fields
 
 
 # Time-stepping parameters
 # Time is in units of ωpe
 Δt = 1e-1
-Nt = 1000
+Nt = 100
 Nν = 1
 Δτ = Δt / Nν
 
 # Domain parameters
 # Length is in units of λde
 Lz = 2π
-Nz = 32
+Nz = 64
+num_ptl = 8192
 
 # Relative and absolute tolerance for convergence of Picard iteration
 ϵᵣ = 1e-3
@@ -49,8 +50,8 @@ zrg = (0:Nz) * zgrid.Δz
 Random.seed!(1)
 
 # Initial number of particles per cell
-particle_per_cell = Int(n₀ ÷ Nz)
-num_ptl = Nz * particle_per_cell
+#particle_per_cell = Int(n₀ ÷ Nz)
+#num_ptl = Nz * particle_per_cell
 println("Nz = $Nz, L = $Lz, num_ptl = $num_ptl")
 
 # Initialize  electron and ion population
@@ -65,7 +66,7 @@ ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
-    ptlₑ₀[idx] = particle(x0 + 1e-1 .* cos(x0) .* cos(x0), 0.0) #ptl_perturbation[idx], 0.0)
+    ptlₑ₀[idx] = particle(x0 + 1e-2 .* cos(x0), 0.0) 
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
@@ -75,7 +76,8 @@ j_avg_0 = sum(deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ)) / zgrid.Lz / n₀
 nₑ = deposit(ptlₑ₀, zgrid, p -> 1. / n₀)
 nᵢ = deposit(ptlᵢ₀, zgrid, p -> 1. / n₀)
 ρⁿ = (nᵢ - nₑ)
-ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+#ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+ϕⁿ = invert_laplace(-ρⁿ, zgrid)
 # Calculate initial electric field with centered difference stencil
 Eⁿ = zeros(Nz)
 Eⁿ[1] = -1. * (ϕⁿ[end] - ϕⁿ[2]) / 2. / zgrid.Δz
@@ -95,8 +97,9 @@ function G(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
 # E: electric field from current time step
 # ptlₑ₀ : Electrons at current time step
 # ptlᵢ₀ : Ions at current time step
+# ptlₑ  : Electrons consistent with E_new
+# ptlᵢ  : Ions consistent with E_new
 # zgrid: Simulation Domain
-# j_avg_0:
 
     #println("Function residuals. E_new[1] = $(E_new[1]), E[1]=$(E[1])")
 
@@ -115,7 +118,6 @@ function G(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     ip_Enew = extrapolate(itp2, Periodic())
 
     # Allocate vector for particle position half time-step
-    num_ptl = length(ptlₑ₀)
     ptlₑ½ = deepcopy(ptlₑ)
     ptlᵢ½ = deepcopy(ptlₑ)
 
@@ -151,17 +153,15 @@ for nn in 1:Nt
     delta_E = std(abs.(smEⁿ))
     E_guess = smooth(smEⁿ + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(smEⁿ)))
 
-    # res_vec = similar(Ẽ)
-
     while (E_converged == false)
-        println("-------------------------- it $(num_it)/40 -----------------------------")
         # Updates residuals
         res_vec = G(E_guess, smEⁿ, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
-        println("                                             Residual = $(norm(res_vec)). norm(smEⁿ) = $(norm(smEⁿ))  ")
+        println("           it $(num_it)/100: Residual = $(norm(res_vec)).")
 
         # Break if residuals are stationary
         if (norm(res_vec) ≤ ϵᵣ * norm(smEⁿ) + ϵₐ)
             E_converged = true
+            println("              -> converged.")
         end
 
         # Update guessed E-field
@@ -171,11 +171,12 @@ for nn in 1:Nt
         num_it += 1
         if (num_it > 100)
             E_converged = true
+            
         end
     end
     # Update smEⁿ with new electric field
     global smEⁿ[:] = E_guess
-    
+    println("New norm(smEⁿ) = $(norm(smEⁿ))")    
 
     if mod(nn, 1) == 0
         diag_ptl(ptlₑ, ptlᵢ, nn)

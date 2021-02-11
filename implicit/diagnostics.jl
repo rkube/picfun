@@ -7,7 +7,7 @@ using Printf
 using particles: particle
 using units: mₑ, mᵢ, n₀
 using grids: grid_1d
-using solvers: ∇⁻²
+using solvers: ∇⁻², invert_laplace
 using pic_utils: deposit, smooth
 
 function diag_ptl(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, tidx)
@@ -26,8 +26,8 @@ function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::
                      tidx, zgrid)
 
     # Calculate kinetic energy of ions and electrons
-    ekin_ele = sum(map(p -> p.vel * p.vel * mₑ * 0.5 / n₀, ptlₑ))
-    ekin_ion = sum(map(p -> p.vel * p.vel * mᵢ * 0.5 / n₀, ptlᵢ))
+    ekin_ele = sum(map(p -> p.vel * p.vel, ptlₑ)) * mₑ * 0.5 / n₀
+    ekin_ion = sum(map(p -> p.vel * p.vel, ptlᵢ)) * mᵢ * 0.5 / n₀
     # Energy in the electric field
     enrg_elc = n₀ * 0.5 * sum(E .* E) * zgrid.Δz
 
@@ -49,14 +49,15 @@ function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zg
 
     nₑ = deposit(ptlₑ, zgrid, p -> 1. / n₀)
     nᵢ = deposit(ptlᵢ, zgrid, p -> 1. / n₀)
-    ρⁿ = (nᵢ - nₑ)
-    ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+    ρ = (nᵢ - nₑ)
+    #ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+    ϕ = invert_laplace(-ρ, zgrid)
     # Calculate initial electric field with centered difference stencil
-    Eⁿ = zeros(zgrid.Nz)
-    Eⁿ[1] = -1. * (ϕⁿ[end] - ϕⁿ[2]) / 2. / zgrid.Δz
-    Eⁿ[2:end-1] = -1. * (ϕⁿ[1:end-2] - ϕⁿ[3:end]) / 2. / zgrid.Δz
-    Eⁿ[end] = -1. * (ϕⁿ[end-1] - ϕⁿ[1]) / 2. / zgrid.Δz
-    smEⁿ = smooth(Eⁿ)
+    E = zeros(zgrid.Nz)
+    E[1] = -1. * (ϕ[end] - ϕ[2]) / 2. / zgrid.Δz
+    E[2:end-1] = -1. * (ϕ[1:end-2] - ϕ[3:end]) / 2. / zgrid.Δz
+    E[end] = -1. * (ϕ[end-1] - ϕ[1]) / 2. / zgrid.Δz
+    smE = smooth(E)
 
     open("ni.txt", "a") do io
         write(io, "$(tidx)\t")
@@ -76,32 +77,32 @@ function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zg
 
     open("rho.txt", "a") do io
         write(io, "$(tidx)\t")
-        for i ∈ 1:length(ρⁿ)
-            write(io, "$(ρⁿ[i]) ")
+        for i ∈ 1:length(ρ)
+            write(io, "$(ρ[i]) ")
         end
         write(io, "\n")
     end
 
     open("phi.txt", "a") do io
         write(io, "$(tidx)\t")
-        for i ∈ 1:length(ϕⁿ)
-            write(io, "$(ϕⁿ[i]) ")
+        for i ∈ 1:length(ϕ)
+            write(io, "$(ϕ[i]) ")
         end
         write(io, "\n")
     end
 
     open("E.txt", "a") do io
         write(io, "$(tidx)\t")
-        for i ∈ 1:length(Eⁿ)
-            write(io, "$(Eⁿ[i]) ")
+        for i ∈ 1:length(E)
+            write(io, "$(E[i]) ")
         end
         write(io, "\n")
     end
 
     open("smE.txt", "a") do io
         write(io, "$(tidx)\t")
-        for i ∈ 1:length(smEⁿ)
-            write(io, "$(smEⁿ[i]) ")
+        for i ∈ 1:length(smE)
+            write(io, "$(smE[i]) ")
         end
         write(io, "\n")
     end

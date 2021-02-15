@@ -8,7 +8,8 @@ This repository implements the PIC algorithm described by Chen et al. http://dx.
 The code solves the equations
 
 ![equation](https://latex.codecogs.com/gif.latex?\frac{x_\mathrm{p}^{n&plus;1}&space;-&space;x_\mathrm{p}^{n}}{\triangle&space;t}&space;=&space;v_\mathrm{p}^{n&plus;1/2})
-![equation](https://latex.codecogs.com/gif.latex?\frac{v_\mathrm{p}^{n&plus;1}&space;-&space;v_\mathrm{p}^{n}}{\triangle&space;t}&space;=&space;\frac{q_\mathrm{p}}{m_\mathrm{p}}\mathrm{SM}\left[&space;E^{n&plus;1/2}&space;\right&space;]\left(x_\mathrm{p}^{n&plus;1/2}&space;\right&space;)
+
+![equation](https://latex.codecogs.com/gif.latex?\frac{v_\mathrm{p}^{n&plus;1}&space;-&space;v_\mathrm{p}^{n}}{\triangle&space;t}&space;=&space;\frac{q_\mathrm{p}}{m_\mathrm{p}}&space;\mathrm{SM}&space;\left[&space;E^{n&plus;1/2}&space;\right]&space;\left(&space;x_\mathrm{p}^{n&plus;1/2}&space;\right))
 
 on a 1-dimensional grid. The new electric field is determined by
  

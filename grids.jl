@@ -4,15 +4,15 @@
 
 module grids
 
-export grid_1d
+export grid_1d, init_grid
 
 struct grid_1d
-  Lz::Float64
-  Nz::Int64
-  Δz::Float64
+  Lz
+  Nz
+  Δz
 end
 
-function init_grid(Lz::Float64, Nz::Int64) :: grid_1d
+function init_grid(Lz, Nz) :: grid_1d
   return grid_1d(Lz, Nz, Lz/Nz)
 end
 

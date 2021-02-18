@@ -5,7 +5,7 @@ module diagnostics
 
 using Printf
 using particles: particle
-using units: mₑ, mᵢ, n₀
+using units: qₑ, qᵢ, mₑ, mᵢ
 using grids: grid_1d
 using solvers: ∇⁻², invert_laplace
 using pic_utils: deposit, smooth
@@ -22,14 +22,13 @@ function diag_ptl(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, tidx)
     end
 end
 
-function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::AbstractArray,
+function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::AbstractArray, 
                      tidx, zgrid)
-
     # Calculate kinetic energy of ions and electrons
-    ekin_ele = sum(map(p -> p.vel * p.vel, ptlₑ)) * mₑ * 0.5 / n₀
-    ekin_ion = sum(map(p -> p.vel * p.vel, ptlᵢ)) * mᵢ * 0.5 / n₀
+    ekin_ele = sum(map(p -> p.vel * p.vel, ptlₑ)) * mₑ * 0.5
+    ekin_ion = sum(map(p -> p.vel * p.vel, ptlᵢ)) * mᵢ * 0.5
     # Energy in the electric field
-    enrg_elc = n₀ * 0.5 * sum(E .* E) * zgrid.Δz
+    enrg_elc = 0.5 * sum(E .* E) * zgrid.Δz
 
     open("Efield.txt", "a") do io
         write(io, "$(tidx)\t")
@@ -44,19 +43,19 @@ function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::
     end
 end
 
-function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zgrid, tidx)
+function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zgrid, tidx, ptl_wt)
     """Calculate fields and write them to file"""
 
-    nₑ = deposit(ptlₑ, zgrid, p -> 1. / n₀)
-    nᵢ = deposit(ptlᵢ, zgrid, p -> 1. / n₀)
-    ρ = (nᵢ - nₑ)
+    nₑ = deposit(ptlₑ, zgrid, p -> ptl_wt)
+    nᵢ = deposit(ptlᵢ, zgrid, p -> ptl_wt)
+    ρ = (qᵢ*nᵢ + qₑ*nₑ)
     #ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
     ϕ = invert_laplace(-ρ, zgrid)
     # Calculate initial electric field with centered difference stencil
     E = zeros(zgrid.Nz)
-    E[1] = -1. * (ϕ[end] - ϕ[2]) / 2. / zgrid.Δz
-    E[2:end-1] = -1. * (ϕ[1:end-2] - ϕ[3:end]) / 2. / zgrid.Δz
-    E[end] = -1. * (ϕ[end-1] - ϕ[1]) / 2. / zgrid.Δz
+    E[1] = -0.5 * (ϕ[2] - ϕ[end]) / zgrid.Δz
+    E[2:end-1] = -0.5 * (ϕ[3:end] - ϕ[1:end-2]) / zgrid.Δz
+    E[end] = -0.5 * (ϕ[1] - ϕ[end-1]) / zgrid.Δz
     smE = smooth(E)
 
     open("ni.txt", "a") do io

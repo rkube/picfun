@@ -27,39 +27,40 @@ Iteratively determine new particle position and velocity given a guess Ẽ.
 - `ϵᵣ::Float64`: Relative tolerance threshold
 - `ϵₐ::Float64`: Absolute tolerance threshold
 - `Δt::Float64`: Time step size
-- `ip_Ẽ::Function(Float)`: interpolator for electric field at tⁿ⁺½
-- `ip_Eⁿ::Function(Float)`: interpoloates electric field at tⁿ on domain.
+- `ip_Ẽ::Function(Float)`: interpolator for electric field at t=(n+1)*Δt
+- `ip_Eⁿ::Function(Float)`: interpolator for electric field at t=n*Δn on
 
 
 """
 function push_v3!(ptl::Array{particle},
                   ptl₀::Array{particle},
                   ptl½::Array{particle},
-                  q, m_over_mₑ,
-                  ϵᵣ, ϵₐ, zgrid, Δt, ip_Ẽ, ip_Eⁿ)
+                  q, mₑ_over_m,
+                  ϵᵣ, ϵₐ, zgrid, Δt, ip_E12)
     # Initial guess of new position before we start Picard iteration.
-    x̃ = map(p -> mod(p.pos + p.vel * 0.1 * Δt, zgrid.Lz), ptl₀)
+    # No modulo since we take the average later: xn+1/2 = (x + x̃) / 2.
+    x̃ = map(p -> p.pos + p.vel * Δt, ptl₀)
   
     Threads.@threads for ele ∈ 1:length(ptl)
         num_it_ptl = 0
         ptl_converged=false
         # Then: iterate the particle's coordinates until convergence
         # Note: We don't need to worry moving the particle out of bounds here since the
-        # electric field interpolator is periodic. And distance measuring between particle
-        # positions is fine too. We only need to fix their position after the Picard
-        # iteration has converged.
+        # electric field interpolator is periodic. To ensure that the stop condition for the
+        # iteration is not affected by periodicity, we restrict the particle position ot the
+        # domain only after iteration has converged.
         while(ptl_converged == false)
             # Calculate x_p^{n+1/2}
             x_pⁿ⁺½ =  0.5 * (ptl₀[ele].pos + x̃[ele])
             # Calculate v_p^{n+1}
-            v_pⁿ⁺¹= ptl₀[ele].vel + Δt * q * 0.5 * (ip_Ẽ(x_pⁿ⁺½) + ip_Eⁿ(x_pⁿ⁺½)) / m_over_mₑ
+            v_pⁿ⁺¹= ptl₀[ele].vel + Δt * q * mₑ_over_m * ip_E12(x_pⁿ⁺½)
             # Calculate v_p^{n+1/2}
             v_pⁿ⁺½ = 0.5 * (ptl₀[ele].vel + v_pⁿ⁺¹)
             # Calculate x_p^{n+1}
             x_pⁿ⁺¹ = ptl₀[ele].pos + Δt * v_pⁿ⁺½
     
             # Check convergence
-            if ((abs(x_pⁿ⁺¹ - x̃[ele]) ≤ ϵᵣ * abs(x_pⁿ⁺¹) + ϵₐ))
+            if ((abs(x_pⁿ⁺¹ - x̃[ele]) ≤ ϵᵣ * abs(x̃[ele]) + ϵₐ))
                 ptl_converged = true
                 ptl[ele].pos = x_pⁿ⁺¹
                 ptl[ele].vel = v_pⁿ⁺¹
@@ -76,10 +77,10 @@ function push_v3!(ptl::Array{particle},
             x̃[ele] = x_pⁿ⁺¹
             num_it_ptl += 1
         end #while_ptl_converged==false
-        fix_position!(ptl[ele], zgrid.Lz)
         # Update ptl_e12 for the current particle
-        ptl½[ele].pos = 0.5 * (ptl[ele].pos + ptl₀[ele].pos)
-        ptl½[ele].vel = 0.5 * (ptl[ele].vel + ptl₀[ele].vel)
+        # Do this before calling fix_position!
+        ptl½[ele] = particle(0.5 * (ptl[ele].pos + ptl₀[ele].pos),  0.5 * (ptl[ele].vel + ptl₀[ele].vel))
+        fix_position!(ptl[ele], zgrid.Lz)
         fix_position!(ptl½[ele], zgrid.Lz)
     end #for ptl i
 end

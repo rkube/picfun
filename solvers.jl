@@ -60,7 +60,7 @@ function invert_laplace(y,  zgrid::grid_1d)
     end
     A0[1,1] = 1.0
     A0[1, 2] = 0.0
-    A0[32,1] = invΔz²
+    A0[Nz,1] = invΔz²
 
     A = copy(A0)
     yvec = vcat([0.0], y[2:Nz])

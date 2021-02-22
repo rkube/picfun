@@ -25,7 +25,7 @@ using diagnostics: diag_ptl, diag_energy, diag_fields
 using Plots
 #
 const n₀ = 1.0
-const num_ptl = 32768
+const num_ptl = 131072
 
 # Time-stepping parameters
 # Time is in units of ωpe
@@ -35,12 +35,12 @@ const Nt = 5
 # Domain parameters
 # Length is in units of λde
 const Lz = 2π
-const Nz = 32
+const Nz = 128
 
 # Relative and absolute tolerance for convergence of Picard iteration
-const ϵᵣ = 1e-4
-const ϵₐ = 1e-7
-const max_iter_E = 1000
+const ϵᵣ = 1e-6
+const ϵₐ = 1e-9
+const max_iter_E = 10000
 
 const ptl_per_cell = num_ptl ÷ Nz
 const ptl_wt = n₀ / ptl_per_cell
@@ -73,8 +73,8 @@ for idx ∈ 1:num_ptl
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
-j_avg_0_e = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt / zgrid.Lz)
-j_avg_0_i = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt / zgrid.Lz)
+j_avg_0_e = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt)
+j_avg_0_i = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt)
 j_avg_0 =  sum(j_avg_0_e + j_avg_0_i) * zgrid.Δz / zgrid.Lz
 
 # deposit particle density on the grid
@@ -127,8 +127,8 @@ function G!(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid, num_it, nn)
     push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mₑ / mᵢ, 1e-10, 1e-12, zgrid, Δt, ip_E12)
  
     # Calculate j_i^{n+1/2}
-    j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ * ptl_wt)# / zgrid.Δz)
-    j_n12_i = deposit(ptlᵢ½, zgrid, p -> p.vel * qᵢ * ptl_wt)# / zgrid.Δz)
+    j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ * ptl_wt)
+    j_n12_i = deposit(ptlᵢ½, zgrid, p -> p.vel * qᵢ * ptl_wt)
     j_n12 = j_n12_e + j_n12_i
     j_n12_avg = sum(j_n12) * zgrid.Δz / zgrid.Lz
 
@@ -143,6 +143,7 @@ function G!(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid, num_it, nn)
 end
 
 
+
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
   
@@ -154,13 +155,7 @@ for nn in 1:Nt
     delta_E = std(abs.(smE))
     E_guess = smooth(smE + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(smE)))
 
-    # fname_iter = @sprintf "smE_iter_nn_%03d.txt" nn
-    # open(fname_iter, "a") do io
-    #     for i ∈ 1:length(E_guess)
-    #         write(io, "$(E_guess[i]) ")
-    #     end
-    #     write(io, "\n")
-    # end
+    fname_conv = @sprintf "convergence_%03d.txt" nn
 
     t = @elapsed begin
         while (E_converged == false)
@@ -176,18 +171,14 @@ for nn in 1:Nt
 
             # Update guessed E-field
             E_guess -= smooth(Δt .* res_vec)
-            # open(fname_iter, "a") do io
-            #     for i ∈ 1:length(E_guess)
-            #         write(io, "$(E_guess[i]) ")
-            #     end
-            #     write(io, "\n")
-            # end
-
             # Break if too many iterations
             num_it += 1
             if (num_it > max_iter_E)
                 E_converged = true
                 println("             -> not converged. Hit iteration limit.")
+            end
+            open(fname_conv, "a") do io
+                write(io, "$(num_it)\t$(norm(res_vec))\n")
             end
         end
     end
@@ -205,13 +196,6 @@ for nn in 1:Nt
     end
     diag_energy(ptlₑ, ptlᵢ, smE, nn, zgrid)
     diag_fields(ptlₑ, ptlᵢ, zgrid, nn, ptl_wt)
-
-    # open(fname_iter, "a") do io
-    #     for i ∈ 1:length(smE)
-    #         write(io, "$(smE[i]) ")
-    #     end
-    #     write(io, "\n")
-    # end
 
     println("Iteration took $(t) seconds.")  
 

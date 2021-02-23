@@ -12,6 +12,7 @@ using Statistics
 using Random
 using LinearAlgebra
 using Printf
+using JSON
 
 push!(LOAD_PATH, pwd())
 
@@ -25,23 +26,27 @@ using diagnostics: diag_ptl, diag_energy, diag_fields
 
 using Plots
 #
-const n₀ = 1.0
-const num_ptl = 32768
+
+stringdata = join(readlines("simulation.json"))
+config = JSON.parse(stringdata)
+
+const n₀ = config["n0"]
+const num_ptl = config["num_ptl"]
 
 # Time-stepping parameters
 # Time is in units of ωpe
-const Δt = 1e-1
-const Nt = 100
+const Δt = config["deltat"]
+const Nt = config["Nt"]
 
 # Domain parameters
 # Length is in units of λde
-const Lz = 2π
-const Nz = 32
+const Lz = config["Lz"]
+const Nz = config["Nz"]
 
 # Relative and absolute tolerance for convergence of Picard iteration
-const ϵᵣ = 1e-10
-const ϵₐ = 1e-12 * √(num_ptl)
-const max_iter_E = 100
+const ϵᵣ = config["epsr"]
+const ϵₐ = config["epsa"] * √(num_ptl)
+const max_iter_E = config["max_iter_E"]
 
 const ptl_per_cell = num_ptl ÷ Nz
 const ptl_wt = n₀ / ptl_per_cell

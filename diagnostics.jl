@@ -25,8 +25,8 @@ end
 function diag_energy(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, E::AbstractArray, 
                      tidx, zgrid)
     # Calculate kinetic energy of ions and electrons
-    ekin_ele = sum(map(p -> p.vel * p.vel, ptlₑ)) * mₑ * 0.5
-    ekin_ion = sum(map(p -> p.vel * p.vel, ptlᵢ)) * mᵢ * 0.5
+    ekin_ele = sum(map(p -> 0.5 * mₑ * p.vel * p.vel, ptlₑ))
+    ekin_ion = sum(map(p -> 0.5 * mᵢ * p.vel * p.vel, ptlᵢ))
     # Energy in the electric field
     enrg_elc = 0.5 * sum(E .* E) * zgrid.Δz
 

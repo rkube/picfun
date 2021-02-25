@@ -24,7 +24,7 @@ using particle_push: push_v3!
 using solvers: ∇⁻², invert_laplace
 using diagnostics: diag_ptl, diag_energy, diag_fields
 
-using Plots
+#using Plots
 #
 
 stringdata = join(readlines("simulation.json"))
@@ -96,8 +96,8 @@ E = zeros(zgrid.Nz)
 E[1] = -0.5 * (ϕ[2] - ϕ[end]) / zgrid.Δz
 E[2:end-1] = -0.5 * (ϕ[3:end] - ϕ[1:end-2]) / zgrid.Δz
 E[end] = -0.5 * (ϕ[1] - ϕ[end-1]) / zgrid.Δz
-#smE = smooth(E)
 
+diag_ptl(ptlₑ₀, ptlᵢ₀, 0)
 diag_energy(ptlₑ₀, ptlᵢ₀, E, 0, zgrid)
 diag_fields(ptlₑ₀, ptlᵢ₀, zgrid, 0, ptl_wt)
 
@@ -121,7 +121,8 @@ function G!(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     zrg = (0:Nz) * zgrid.Δz
 
     # Interpolator for E at n+1/2
-    itp = interpolate([0.5 * smooth(E + E_new); 0.5 * (E[1] + E_new[1])], BSpline(Linear()))
+    E_smooth = 0.5 * smooth(E + E_new)
+    itp = interpolate([E_smooth; E_smooth[1]], BSpline(Linear()))
     itp2 = Interpolations.scale(itp, zrg)
     ip_E12 = extrapolate(itp2, Periodic())
 
@@ -131,8 +132,17 @@ function G!(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
 
     # Particle enslavement: Push particles into a consistent state
     # ptlₑ and ptlᵢ will be updated.
-    push_v3!(ptlₑ, ptlₑ₀, ptlₑ½, qₑ, 1.0, 1e-10, 1e-12, zgrid, Δt, ip_E12)
-    push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mₑ / mᵢ, 1e-10, 1e-12, zgrid, Δt, ip_E12)
+    push_v3!(ptlₑ, ptlₑ₀, ptlₑ½, qₑ, 1.0, 1e-6, 1e-10, zgrid, Δt, ip_E12)
+    push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mₑ / mᵢ, 1e-6, 1e-10, zgrid, Δt, ip_E12)
+
+    # for pidx ∈ 1:num_ptl
+    #     @assert(ptlₑ₀[pidx].pos < zgrid.Lz)
+    #     @assert(ptlₑ½[pidx].pos < zgrid.Lz)
+    #     @assert(ptlₑ[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ₀[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ½[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ[pidx].pos < zgrid.Lz)
+    # end
  
     # Calculate j_i^{n+1/2}
     j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ * ptl_wt)
@@ -195,8 +205,8 @@ for nn in 1:Nt
     # Guess a new E field. This is our Eᵏ
     delta_E = std(abs.(E))
     Eᵏ = E + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(E))
-    Eᵏ[1] = 0.0
-    Eᵏ[end] = 0.0
+    #Eᵏ[1] = 0.0
+    #Eᵏ[end] = 0.0
     # Define a new closure for for matrix-vector multiplications
     # Here the reference vector is smE, the converged solution of the
     # previous time step.
@@ -246,7 +256,7 @@ for nn in 1:Nt
     end
 
     # Write diagnostics
-    if mod(nn, 1) == 0
+    if mod(nn, 100) == 0
         diag_ptl(ptlₑ, ptlᵢ, nn)
     end
     diag_energy(ptlₑ, ptlᵢ, E, nn, zgrid)

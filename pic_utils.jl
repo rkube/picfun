@@ -10,31 +10,31 @@ Implements the binomial smoothing operator:
 SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
 
 """ ->
-function smooth(Q::AbstractArray{<:AbstractFloat})
+function smooth(Q)
   Q_sm = zeros(length(Q))
+  Q_sm[1] = 0.25 * (Q[end] + 2 * Q[1] + Q[2])
   Q_sm[2:end-1] = 0.25 * (Q[1:end-2] + 2 * Q[2:end-1] + Q[3:end])
-  Q_sm[1] = 0.25 * (Q[end] + 2. * Q[1] + Q[2])
-  Q_sm[end] = 0.25 * (Q[end - 1] + 2. * Q[end] + Q[1])
+  Q_sm[end] = 0.25 * (Q[end-1] + 2 * Q[end] + Q[1])
   return Q_sm
 end
 
 @doc """
 b-spline b1.
 
-          0  ,   if |x| > 1
-b1(x) = { x+1,   if -1 < x < 0
-          1-x.   if 0 <= x , 1
+          0     for       |x| ≥ 1
+b1(x) = { x+1   for   -1 < x < 0
+          1-x   for    0 ≤ x < 1
 """ ->
 function b1(z, zp, Δz)
     arg = (z - zp) / Δz
-    if(abs(arg) > 1)
+    if abs(arg) > 1
         return (0.0)
     end
 
-    if (arg < 0)
+    if arg < 0
         return (arg + 1)
-    elseif (arg >= 0)
-        return (-arg + 1)
+    elseif  arg ≥ 0
+        return (1 - arg)
     end
 end
 
@@ -86,11 +86,16 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # Don't parallelize just yet. This leads to faulty results. May have to use atomics
     # somewhere in here?
     for idx ∈ 1:length(ptl_vec)
+        #@assert(ptl_vec[idx].pos ≥ 0.0)
+        #@assert(ptl_vec[idx].pos ≤ zgrid.Lz)
         # gidx[01] serves two purposes:
         # 1.) Index grid quantities
         # 2.) Get the z-coordinate of the grid at that index.
         #     Do this by subtracting 1!
         gidx0 = last_idx[idx]
+        if gidx0 > zgrid.Nz
+            println("idx=$(idx) pos=$(ptl_vec[idx].pos), gidx=$(gidx0)")
+        end
         # When wrapping at Nz, add one
         gidx1 = gidx0 == zgrid.Nz ? 1 : gidx0 + 1
         left_val = b1((gidx0 - 1) * zgrid.Δz, ptl_vec[idx].pos, zgrid.Δz)

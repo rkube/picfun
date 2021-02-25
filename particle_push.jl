@@ -1,5 +1,5 @@
 #
-# Implementations of simple particle pushing schemes
+# Implementation of particle pushing schemes
 #
 
 module particle_push
@@ -51,6 +51,10 @@ function push_v3!(ptl::Array{particle},
         # domain only after iteration has converged.
         while(ptl_converged == false)
             # Calculate x_p^{n+1/2}
+            #if sign(x̃[ele]) * sign(ptl₀[ele].pos) != one(x̃[ele])
+            #    println("$(ele) - $(num_it_ptl): x̃ = $(x̃[ele]) ptl.pos = $(ptl₀[ele].pos), ptl.vel = $(ptl₀[ele].vel)")
+            #end
+
             x_pⁿ⁺½ =  0.5 * (ptl₀[ele].pos + x̃[ele])
             # Calculate v_p^{n+1}
             v_pⁿ⁺¹= ptl₀[ele].vel + Δt * q * mₑ_over_m * ip_E12(x_pⁿ⁺½)
@@ -67,8 +71,8 @@ function push_v3!(ptl::Array{particle},
                 break
             end
     
-            if (num_it_ptl > 100)
-                println("*** Failed to converge: Starting point: $(ptl[ele].pos), Guess: $(x̃[ele]), Converged to: $(x_pⁿ⁺¹) Converged: |x̃[ele] - x_pⁿ⁺¹| = $(abs(x_pⁿ⁺¹ - x̃[ele])), $(num_it_ptl) iterations")
+            if (num_it_ptl > 200)
+                println("*** Failed to converge: Starting point: $(ptl₀[ele].pos), Guess: $(x̃[ele]), Converged to: $(x_pⁿ⁺¹) Converged: |x̃[ele] - x_pⁿ⁺¹| = $(abs(x_pⁿ⁺¹ - x̃[ele])), $(num_it_ptl) iterations")
                 ptl_converged = true
                 break
             end
@@ -82,6 +86,9 @@ function push_v3!(ptl::Array{particle},
         ptl½[ele] = particle(0.5 * (ptl[ele].pos + ptl₀[ele].pos),  0.5 * (ptl[ele].vel + ptl₀[ele].vel))
         fix_position!(ptl[ele], zgrid.Lz)
         fix_position!(ptl½[ele], zgrid.Lz)
+
+        #@assert(ptl[ele].pos < zgrid.Lz)
+        #@assert(ptl½[ele].pos < zgrid.Lz)
     end #for ptl i
 end
 

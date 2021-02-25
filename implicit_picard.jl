@@ -25,21 +25,21 @@ using diagnostics: diag_ptl, diag_energy, diag_fields
 using Plots
 #
 const n₀ = 1.0
-const num_ptl = 131072
+const num_ptl = 32768
 
 # Time-stepping parameters
 # Time is in units of ωpe
 const Δt = 1e-1
-const Nt = 5
+const Nt = 1
 
 # Domain parameters
 # Length is in units of λde
 const Lz = 2π
-const Nz = 128
+const Nz = 32
 
 # Relative and absolute tolerance for convergence of Picard iteration
 const ϵᵣ = 1e-6
-const ϵₐ = 1e-9
+const ϵₐ = 1e-8
 const max_iter_E = 10000
 
 const ptl_per_cell = num_ptl ÷ Nz
@@ -70,7 +70,7 @@ for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
     ptlₑ₀[idx] = particle(x0 + 1e-2 .* cos(x0), 0.0) 
-    fix_position!(ptlₑ₀[idx], zgrid.Lz)
+    fix_position!(ptlₑ₀[idx], zgrid.Lz - zgrid.Δz)
 end
 # Calculate initial j_avg
 j_avg_0_e = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt)

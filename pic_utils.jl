@@ -1,5 +1,6 @@
 module pic_utils
 
+using Zygote
 using particles: particle
 using grids: grid_1d
 
@@ -11,11 +12,13 @@ SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
 
 """ ->
 function smooth(Q)
-  Q_sm = zeros(length(Q))
-  Q_sm[1] = 0.25 * (Q[end] + 2 * Q[1] + Q[2])
-  Q_sm[2:end-1] = 0.25 * (Q[1:end-2] + 2 * Q[2:end-1] + Q[3:end])
-  Q_sm[end] = 0.25 * (Q[end-1] + 2 * Q[end] + Q[1])
-  return Q_sm
+  #Q_sm = zeros(length(Q))
+  Nz = size(Q)[1]
+  Q_sm = Zygote.Buffer(zeros(Nz))
+  Q_sm[1] = 0.25 * (Q[Nz] + 2 * Q[1] + Q[2])
+  Q_sm[2:Nz-1] = 0.25 * (Q[1:Nz-2] + 2 * Q[2:Nz-1] + Q[3:Nz])
+  Q_sm[Nz] = 0.25 * (Q[Nz-1] + 2 * Q[Nz] + Q[1])
+  return copy(Q_sm)
 end
 
 @doc """

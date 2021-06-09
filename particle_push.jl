@@ -41,7 +41,8 @@ function push_v3!(ptl::Array{particle},
     # No modulo since we take the average later: xn+1/2 = (x + x̃) / 2.
     x̃ = map(p -> p.pos + p.vel * Δt, ptl₀)
   
-    Threads.@threads for ele ∈ 1:length(ptl)
+    #Threads.@threads for ele ∈ 1:length(ptl)
+    for ele ∈ 1:length(ptl)
         num_it_ptl = 0
         ptl_converged=false
         # Then: iterate the particle's coordinates until convergence

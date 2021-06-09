@@ -13,7 +13,6 @@ using Random
 using LinearAlgebra
 using Printf
 using JSON
-using DelimitedFiles
 
 push!(LOAD_PATH, pwd())
 
@@ -72,13 +71,19 @@ ptlₑ = Array{particle}(undef, num_ptl)
 
 # Initial position for electrons and ions
 ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
+# Initial velocity is sampled from a maxwellian.
+# Note that at each grid interval, the particle distribution should integrate up to
+# a Maxwellian. We sample all particles at once and hope that each sub-interval of
+# the sample still resembles a Maxwellian.
+d = Normal(0.0, 1.0)
+ptl_vel = rand(d, num_ptl)
 
 # Initialize stationary electrons and ions.
 # The electron positions are perturbed slightly around the ions
 for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
-    ptlₑ₀[idx] = particle(x0 + 1e-3 .* cos(2. * x0), 0.0) 
+    ptlₑ₀[idx] = particle(x0 + 5e-2 .* cos(0.5 * x0), ptl_vel[idx]) 
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
 # Calculate initial j_avg
@@ -135,6 +140,15 @@ function G!(E_new, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
     # ptlₑ and ptlᵢ will be updated.
     push_v3!(ptlₑ, ptlₑ₀, ptlₑ½, qₑ, 1.0, 1e-6, 1e-10, zgrid, Δt, ip_E12)
     push_v3!(ptlᵢ, ptlᵢ₀, ptlᵢ½, qᵢ, mₑ / mᵢ, 1e-6, 1e-10, zgrid, Δt, ip_E12)
+
+    # for pidx ∈ 1:num_ptl
+    #     @assert(ptlₑ₀[pidx].pos < zgrid.Lz)
+    #     @assert(ptlₑ½[pidx].pos < zgrid.Lz)
+    #     @assert(ptlₑ[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ₀[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ½[pidx].pos < zgrid.Lz)
+    #     @assert(ptlᵢ[pidx].pos < zgrid.Lz)
+    # end
  
     # Calculate j_i^{n+1/2}
     j_n12_e = deposit(ptlₑ½, zgrid, p -> p.vel * qₑ * ptl_wt)
@@ -199,7 +213,7 @@ for nn in 1:Nt
     Eᵏ = E + rand(Uniform(-0.1 * delta_E, 0.1 * delta_E), length(E))
     #Eᵏ[1] = 0.0
     #Eᵏ[end] = 0.0
-    # Define a new closure for matrix-vector multiplications
+    # Define a new closure for for matrix-vector multiplications
     # Here the reference vector is smE, the converged solution of the
     # previous time step.
     G_res(Enew) = G!(Enew, E, ptlₑ₀, ptlᵢ₀, ptlₑ, ptlᵢ, zgrid)
@@ -223,25 +237,13 @@ for nn in 1:Nt
             # Calculate the convergence tolerance 
 
             # Calculate the current residual -G(Eᵏ)
-            δEᵏ, hist = IterativeSolvers.gmres(A_iter, -G_res(Eᵏ), verbose=true, log=true)
+            δEᵏ = IterativeSolvers.gmres(A_iter, -G_res(Eᵏ), reltol=1e-10, verbose=true)
             Eᵏ[:] += δEᵏ[:]
             num_it += 1
 
-            # Store electric field
-            fname = @sprintf "GMRES_iter_%04d_deltaE.txt" num_it
-            open(fname, "a") do io
-                writedlm(io, [nn; δEᵏ]')
-            end
-
-            # Store convergence history
-            fname = @sprintf "GMRES_iter_%04d_convhist.txt" num_it
-            open(fname, "a") do io
-                writedlm(io, hist.data[:resnorm]')
-            end
-
             current_norm = norm(G_res(Eᵏ))
             # Updates residuals
-            println("           Newton iteration $(num_it)/$(max_iter_E): Residual = $(current_norm).")
+            println("           it $(num_it)/$(max_iter_E): Residual = $(current_norm).")
 
             # Break if residuals are stationary
             if (current_norm ≤ newton_ϵt) || num_it > max_iter_E
@@ -267,4 +269,7 @@ for nn in 1:Nt
     diag_fields(ptlₑ, ptlᵢ, zgrid, nn, ptl_wt)
 
     println("Iteration took $(t) seconds.")  
+
+        
+
 end

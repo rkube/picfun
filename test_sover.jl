@@ -19,9 +19,9 @@ zvals = (0:Nz - 1) * zgrid.Δz
 
 # Calculate a Gaussian and its second derivative
 
-sigma = Lz / 10.0
-u = exp.(-0.5 * (zvals .- 0.5 * Lz).^ 2.0/ sigma / sigma)
-d2u = u .* ((zvals .- 0.5 * Lz).^2.0 .- sigma * sigma) / sigma^4.0;
+σ = Lz / 10.0
+u = exp.(-0.5 * (zvals .- 0.5 * Lz).^ 2.0 / σ / σ)
+d2u = u .* ((zvals .- 0.5 * Lz).^2.0 .- σ * σ) / σ^4.0;
 
 # Analyitcally invert second derivative
 u_num = ∇⁻²(d2u, zgrid)

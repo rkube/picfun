@@ -116,20 +116,28 @@ data_2 = load_data(basedir, "cos", 1, 1e-2, 0.1);
 data_3 = load_data(basedir, "sin", 2, 1e-2, 0.1);
 data_4 = load_data(basedir, "cos", 2, 1e-2, 0.1);
 
-
+# Concatenate all datasets
 all_x = cat(data_1[1], data_2[1], data_3[1], data_4[1], dims=2);
 all_y = cat(data_1[2], data_2[2], data_3[2], data_4[2], dims=2);
 
+# Split into train and test set
+num_samples = size(all_x, 2)
+idx_split = Int(num_samples * 0.8)
+x_train = all_x[:, 1:idx_split];
+y_train = all_y[:, 1:idx_split];
 
+x_dev = all_x[:, idx_split+1:end];
+y_dev = all_y[:, idx_split+1:end];
 
 # Optimizer and parameters
-num_epochs = 20
+num_epochs = 2
 η = 1e-3
 opt = ADAM(η)
 
 # Define a data loader
-batch_size = 1
-train_loader = Flux.Data.DataLoader((all_x, all_y), batchsize=batch_size, shuffle=true)
+batch_size = 4
+train_loader = Flux.Data.DataLoader((x_train, y_train), batchsize=batch_size, shuffle=true)
+dev_loader = Flux.Data.DataLoader((x_dev, y_dev), batchsize=batch_size, shuffle=true)
 
 # To get the first element, I can use 
 # (x, y) = first(train_loader)
@@ -137,17 +145,19 @@ train_loader = Flux.Data.DataLoader((all_x, all_y), batchsize=batch_size, shuffl
 all_loss = zeros(num_epochs)
 
 for e in 1:num_epochs
-    current_loss = 0.0
     for (x, y) in train_loader
         grads = Flux.gradient(Flux.params(model)) do
             proj_loss(x, y)
         end
-        current_loss += proj_loss(x, y)
 
         Flux.Optimise.update!(opt, Flux.params(model), grads)
-
     end
-    all_loss[e] = current_loss / length(train_loader)
+
+    # Calculate loss on dev set
+    for (x, y) in dev_loader
+        all_loss[e] += proj_loss(x, y) / length(dev_loader)
+    end
+
     @show all_loss[e]
 end
 

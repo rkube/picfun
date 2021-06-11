@@ -5,6 +5,12 @@ using DelimitedFiles
 using Statistics 
 using Printf
 using LinearAlgebra
+using MLDataPattern
+using BSON: @save
+
+push!(LOAD_PATH, pwd())
+
+using mlutils: make_sim_onehot
 
 # Neural network takes as input
 # n(x), E(x), Δt
@@ -13,15 +19,9 @@ using LinearAlgebra
 
 Nz = 32
 num_aug = 8
-model = Chain(Dense(2 * Nz + 6, 150, relu), Dense(150, 500, relu), Dense(500, 500, relu), Dense(500, 150, relu), Dense(150, Nz * num_aug))
 
-basedir = "/Users/ralph/source/repos/picfun/simulations/"
-
-f = "sin"
-k = 1
-A = 1e-2
-Δt = 0.1
-
+#basedir = "/global/cscratch1/sd/rkube/picfun"
+basedir = "/Volumes/2TB APFS Raid/simulations/picfun/"
 
 # For the first Newton iteration, we are given n(x), E(x), Δt and try to
 # match the first GMRES update, δE.
@@ -46,24 +46,7 @@ function load_data(basedir, f, k, A, Δt)
     simdir = @sprintf "pert_%s%1d_%s_dt%s" f k A_str Δt_str 
     @show simdir
 
-    # Build 1-hot vector for input function
-    input_fn_1hot = zeros(6)
-    if f == "sin"
-        if k == 1
-            input_fn_1hot[1] = 1.0
-        elseif k == 2
-            input_fn_1hot[3] = 1.0
-        end
-    elseif f == "cos"
-        if k == 1
-            input_fn_1hot[2] = 1.0
-        elseif k == 2
-            input_fn_1hot[4] = 1.0
-        end
-    end
-    input_fn_1hot[5] = A
-    input_fn_1hot[6] = Δt
-    @show input_fn_1hot
+    input_fn_onehot = make_sim_onehot(f, k, A, Δt)
         
     # Transpose the arrays. That way, the last dimension is the sample dimension.
     # This layout is common for flux: https://fluxml.ai/Flux.jl/stable/data/dataloader/#DataLoader
@@ -79,7 +62,7 @@ function load_data(basedir, f, k, A, Δt)
     # Feature vector is ne and E
     x_all = cat(ne_norm, E_norm, dims=1)
     # Now we add the simulation parameters to x_all, in the first dimension
-    x_all = cat(x_all, reshape(repeat(reshape(input_fn_1hot, (6, 1)), outer=size(E_norm, 2)), (6, size(E_norm, 2))), dims=1)
+    x_all = cat(x_all, reshape(repeat(reshape(input_fn_onehot, (6, 1)), outer=size(E_norm, 2)), (6, size(E_norm, 2))), dims=1)
 
     # Target vector is δE
     y_all = δE_norm
@@ -90,35 +73,43 @@ function load_data(basedir, f, k, A, Δt)
 end
 
 
-
-
-
 # Define projection loss function.
 # It takes input the proposed vectors v₁,...,vₙ and calculates
 # min ||f - f⁽ᵐ⁾||² / ||f⁽ᵐ⁾||²
 function proj_loss(x, fᵐ)
-
     V0 = reshape(model(x), (Nz, num_aug, batch_size))
+    @assert size(V0)[end] == size(fᵐ)[end]
     norm_sum = 0.0
-    for i ∈ 1:size(V0, 3)
+    for i ∈ 1:batch_size
         V = V0[:, :, i]
         # Following (6.12) in Trefethen to get f.
-        x = pinv(transpose(V) * V) * transpose(V) * fᵐ
-        f = V*x
-        norm_sum += norm(f - fᵐ) / norm(fᵐ)
+        # x = pinv(transpose(V) * V) * transpose(V) * fᵐ[:, i]
+        # f = V*x
+        f = V * pinv(transpose(V) * V) * transpose(V) * fᵐ[:, i]
+        norm_sum += norm(f - fᵐ[:, i]) / norm(fᵐ[:,i])
     end
-    return(norm_sum)
+    # Average the accumulated loss over the mini-batch
+    # https://stackoverflow.com/questions/55368741/how-to-deal-with-mini-batch-loss-in-pytorch
+    return(norm_sum / batch_size)
 end
 
 # Load data from two simulations with different basis functions
-data_1 = load_data(basedir, "sin", 1, 1e-2, 0.1);
-data_2 = load_data(basedir, "cos", 1, 1e-2, 0.1);
-data_3 = load_data(basedir, "sin", 2, 1e-2, 0.1);
-data_4 = load_data(basedir, "cos", 2, 1e-2, 0.1);
+data_1 = load_data(basedir, sin, 1, 1e-2, 0.1);
+data_2 = load_data(basedir, cos, 1, 1e-2, 0.1);
+data_3 = load_data(basedir, sin, 2, 1e-2, 0.1);
+data_4 = load_data(basedir, cos, 2, 1e-2, 0.1);
+data_5 = load_data(basedir, sin, 1, 1e-3, 0.1);
+data_6 = load_data(basedir, cos, 1, 1e-3, 0.1);
+data_7 = load_data(basedir, sin, 2, 1e-3, 0.1);
+data_8 = load_data(basedir, cos, 2, 1e-3, 0.1);
+
 
 # Concatenate all datasets
-all_x = cat(data_1[1], data_2[1], data_3[1], data_4[1], dims=2);
-all_y = cat(data_1[2], data_2[2], data_3[2], data_4[2], dims=2);
+all_x = cat(data_1[1], data_2[1], data_3[1], data_4[1], data_5[1], data_6[1], data_7[1], data_8[1], dims=2);
+all_y = cat(data_1[2], data_2[2], data_3[2], data_4[2], data_5[2], data_6[2], data_7[2], data_8[2], dims=2);
+
+all_x = getobs(shuffleobs(all_x));
+all_y = getobs(shuffleobs(all_y));
 
 # Split into train and test set
 num_samples = size(all_x, 2)
@@ -130,38 +121,40 @@ x_dev = all_x[:, idx_split+1:end];
 y_dev = all_y[:, idx_split+1:end];
 
 # Optimizer and parameters
-num_epochs = 2
-η = 1e-3
-opt = ADAM(η)
+num_epochs = 20
+η = 1e-2
+opt = Momentum(η, 0.99)
 
 # Define a data loader
-batch_size = 4
+batch_size = 32
 train_loader = Flux.Data.DataLoader((x_train, y_train), batchsize=batch_size, shuffle=true)
 dev_loader = Flux.Data.DataLoader((x_dev, y_dev), batchsize=batch_size, shuffle=true)
 
 # To get the first element, I can use 
 # (x, y) = first(train_loader)
-
-all_loss = zeros(num_epochs)
+model = Chain(Dense(2 * Nz + 6, 500, swish), Dense(500, 1000, swish),  Dense(1000, 1000, swish), Dense(1000, Nz * num_aug))
+params = Flux.params(model)
+all_loss = zeros(num_epochs);
 
 for e in 1:num_epochs
     for (x, y) in train_loader
-        grads = Flux.gradient(Flux.params(model)) do
+        grads = Flux.gradient(params) do
             proj_loss(x, y)
         end
 
-        Flux.Optimise.update!(opt, Flux.params(model), grads)
+        Flux.Optimise.update!(opt, params, grads)
     end
 
     # Calculate loss on dev set
     for (x, y) in dev_loader
-        all_loss[e] += proj_loss(x, y) / length(dev_loader)
+        all_loss[e] += proj_loss(x, y) / length(dev_loader) 
     end
 
     @show all_loss[e]
 end
 
-
+model_name = @sprintf "simple_MLP_num_pca_%02d.bson" num_aug
+@save model_name model
 
 
 # End of file

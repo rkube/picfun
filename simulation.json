@@ -7,5 +7,25 @@
     "Nz": 32,
     "epsr": 0.0000000001,
     "epsa": 0.000000000001,
-    "max_iter_E": 100
+    "max_iter_E": 100,
+    "ne_init_func":
+    {
+      "A": 0.01,
+      "a1": 0.25,
+      "f1": "sin",
+      "k1": 1,
+      "a2": 0.75,
+      "f2": "cos",
+      "k2": 2
+    },
+    "ML":
+    {
+      "model_dir": "/scratch/gpfs/rkube/picfun/DD_GMRES/nnv4_training",
+      "num_aug": 16,
+      "optim_fun": "ADAM",
+      "batch_size": 32,
+      "activation": "swish",
+      "conv1_width": 5,
+      "conv2_width": 5
+    }
 }

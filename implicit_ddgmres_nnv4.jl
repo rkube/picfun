@@ -13,6 +13,8 @@ using Random
 using LinearAlgebra
 using Printf
 using JSON
+using Flux
+using BSON: @load
 using DelimitedFiles
 
 push!(LOAD_PATH, pwd())
@@ -22,8 +24,10 @@ using grids: grid_1d, init_grid
 using pic_utils: smooth, deposit
 using particles: particle, fix_position!
 using particle_push: push_v3!
-using solvers: ∇⁻², invert_laplace
+using solvers: ∇⁻², invert_laplace, dd_gmres_ben, dd_gmres
 using diagnostics: diag_ptl, diag_energy, diag_fields
+using parse_config: build_init_func, build_nn_modelname_v4
+using mlutils: make_sim_onehot
 
 
 stringdata = join(readlines("simulation.json"))
@@ -50,9 +54,13 @@ const max_iter_E = config["max_iter_E"]
 const ptl_per_cell = num_ptl ÷ Nz
 const ptl_wt = n₀ / ptl_per_cell
 
-# Get initialization functions
-ne_init_func(x) = A * (config["ne_init_func"]["a1"] * ne_f1(config["ne_init_func"]["k1"] * x) + 
-                       config["ne_init_func"]["a2"] * ne_f2(config["ne_init_func"]["k2"] * x))
+# Load the initialization function for the electron position from file
+ne_init_func = build_init_func(config["ne_init_func"])
+num_aug = config["ML"]["num_aug"]
+# Load all parameters needed to identify which ML model to load into file
+ml_model_fname = build_nn_modelname_v4(config["ML"])
+@load ml_model_fname model
+
 
 # Initialize the grid
 zgrid = init_grid(Lz, Nz)
@@ -78,9 +86,18 @@ ptl_pos = range(0.0, step=zgrid.Lz / num_ptl, length=num_ptl)
 for idx ∈ 1:num_ptl
     x0 = ptl_pos[idx]
     ptlᵢ₀[idx] = particle(x0, 0.0)
-    ptlₑ₀[idx] = particle(x0 + 1e-3 .* cos(2. * x0), 0.0) 
+    ptlₑ₀[idx] = particle(x0 + ne_init_func(x0), 0.0)
     fix_position!(ptlₑ₀[idx], zgrid.Lz)
 end
+
+input_fn_onehot1 = make_sim_onehot(config["ne_init_func"]["f1"], 
+                                   config["ne_init_func"]["k1"], 
+                                   config["ne_init_func"]["A"], Δt)
+input_fn_onehot2 = make_sim_onehot(config["ne_init_func"]["f2"], 
+                                   config["ne_init_func"]["k2"], 
+                                   config["ne_init_func"]["A"], Δt)
+input_fn_onehot = config["ne_init_func"]["a1"] * input_fn_onehot1 + config["ne_init_func"]["a2"] * input_fn_onehot2
+
 # Calculate initial j_avg
 j_avg_0_e = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt)
 j_avg_0_i = deposit(ptlₑ₀, zgrid, p -> p.vel * qₑ * ptl_wt)
@@ -186,7 +203,6 @@ function LinearAlgebra.mul!(y::AbstractVecOrMat, A::MyRes, x::AbstractVector)
 end
 
 
-
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
 
@@ -207,12 +223,6 @@ for nn in 1:Nt
 
     # Solve the system ∂G/∂E|ᵏ δEᵏ = - G(Eᵏ)
     # Keep track of the convergence history:
-    newton_α = 1.5
-    newton_γ = 0.9
-    newton_ζmax = 0.8
-    newton_ζA = [newton_γ]
-    newton_ζB = []
-    newton_ζk = []
     newton_ϵt = ϵₐ + ϵᵣ * initial_norm
 
     t = @elapsed begin
@@ -220,24 +230,41 @@ for nn in 1:Nt
 
             # A_iter implements matrix-vector multiplication for A = ∂G/∂E|ᵏ
             A_iter = MyRes(Eᵏ, G_res)
-            # Calculate the convergence tolerance 
+            # Create the input vector for ml_model. Ugly bit should work
+            nₑ = deposit(ptlₑ, zgrid, p -> ptl_wt)
+            ρ = (qᵢ*nᵢ + qₑ*nₑ)
+            #ϕⁿ = ∇⁻²(-ρⁿ, zgrid)
+            ϕ = invert_laplace(-ρ, zgrid)
+            # Calculate initial electric field with centered difference stencil
+            E = zeros(zgrid.Nz)
+            E[1] = -0.5 * (ϕ[2] - ϕ[end]) / zgrid.Δz
+            E[2:end-1] = -0.5 * (ϕ[3:end] - ϕ[1:end-2]) / zgrid.Δz
+            E[end] = -0.5 * (ϕ[1] - ϕ[end-1]) / zgrid.Δz
+
+            # Below, the normalization constants are hard-coded to match the mean and standard deviation
+            # used in training of nnv4.
+            nₑscaled = Vector{Float32}(nₑ)
+            nₑscaled = (nₑscaled .- 1.0) ./ 0.0045
+
+            Escaled = Vector{Float32}(E)
+            Escaled = (Escaled .- 0.0) ./ 0.0028
+
+            U = reshape(model((reshape([nₑscaled Escaled], (Nz, 1, 2, 1)), input_fn_onehot)), (Nz, num_aug)) * 0.00246
 
             # Calculate the current residual -G(Eᵏ)
-            δEᵏ, hist = IterativeSolvers.gmres(A_iter, -G_res(Eᵏ), verbose=true, log=true)
+            if num_it == 0
+                δEᵏ, hist = dd_gmres_ben(A_iter, -G_res(Eᵏ), U, num_it, log=true)
+            else
+                δEᵏ, hist = IterativeSolvers.gmres(A_iter, -G_res(Eᵏ), verbose=true, log=true)
+
+                # Store convergence history
+                fname = @sprintf "GMRES_iter_%04d_convhist.txt" num_it
+                open(fname, "a") do io
+                    writedlm(io, hist.data[:resnorm]')
+                end
+            end
             Eᵏ[:] += δEᵏ[:]
             num_it += 1
-
-            # Store electric field
-            fname = @sprintf "GMRES_iter_%04d_deltaE.txt" num_it
-            open(fname, "a") do io
-                writedlm(io, [nn; δEᵏ]')
-            end
-
-            # Store convergence history
-            fname = @sprintf "GMRES_iter_%04d_convhist.txt" num_it
-            open(fname, "a") do io
-                writedlm(io, hist.data[:resnorm]')
-            end
 
             current_norm = norm(G_res(Eᵏ))
             # Updates residuals

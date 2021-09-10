@@ -183,7 +183,9 @@ function LinearAlgebra.mul!(y::AbstractVecOrMat, A::MyRes, x::AbstractVector)
 	y[:] = result[:]
 end
 
-
+# To trace out A
+ei = zeros(Nz)
+A_matrix = zeros(Nz, Nz) 
 
 for nn in 1:Nt
     println("======================== $(nn)/$(Nt)===========================")
@@ -205,12 +207,6 @@ for nn in 1:Nt
 
     # Solve the system ∂G/∂E|ᵏ δEᵏ = - G(Eᵏ)
     # Keep track of the convergence history:
-    newton_α = 1.5
-    newton_γ = 0.9
-    newton_ζmax = 0.8
-    newton_ζA = [newton_γ]
-    newton_ζB = []
-    newton_ζk = []
     newton_ϵt = ϵₐ + ϵᵣ * initial_norm
 
     t = @elapsed begin
@@ -218,6 +214,19 @@ for nn in 1:Nt
 
             # A_iter implements matrix-vector multiplication for A = ∂G/∂E|ᵏ
             A_iter = MyRes(Eᵏ, G_res)
+            #Trace out the matrix and store Eigenvalues
+            if num_it == 0
+                for n ∈ 1:Nz
+                    ei[:] .= 0.0
+                    ei[n] = 1.0
+                    A_matrix[n, :] = A_iter * ei
+                end
+                λ = eigvals(A_matrix)
+                fname = @sprintf "A_matrix_eigs_%04d.txt" num_it
+                open(fname, "a") do io
+                    writedlm(io, vcat(real.(λ), imag.(λ))')
+                end
+            end
             # Calculate the convergence tolerance 
 
             # Calculate the current residual -G(Eᵏ)

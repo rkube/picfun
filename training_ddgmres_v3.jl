@@ -1,25 +1,18 @@
 # Encoding: UTF-8 -*-
 
-using Flux 
-using Zygote
-using CUDA
-using ChainRules
-using ChainRulesCore
+using Flux, ParameterSchedulers
+using ParameterSchedulers: Scheduler
+using DelimitedFiles
 using Statistics 
+using Printf
 using LinearAlgebra
 using MLDataPattern
-using DelimitedFiles
 using BSON: @save
-using Printf
 using ArgParse
-using BenchmarkTools
 
 push!(LOAD_PATH, pwd())
 
 using mlutils: make_sim_onehot
-
-CUDA.allowscalar(false)
-include("qr_backprop.jl")
 
 # Neural network takes as input
 # n(x), E(x), Δt
@@ -52,12 +45,6 @@ s = ArgParseSettings()
             help = "Batch size"
             arg_type = Int
             default = 16
-            required = true
-
-        "--num_epochs"
-            help = "Number of epochs to train"
-            arg_type = Int
-            default = 30
             required = true
 
         "--dropout"
@@ -151,7 +138,6 @@ end
 
 
 
-
 # Define projection loss function.
 # It takes input the proposed vectors v₁,...,vₙ and calculates
 # min ||f - f⁽ᵐ⁾||² / ||f⁽ᵐ⁾||²
@@ -163,13 +149,13 @@ function proj_loss(x, fᵐ)
     # V0 = reshape(model(x), (Nz, num_aug, size(model(x))[end]))
     @assert size(V0)[end] == size(fᵐ)[end]
     # Make explicitly Float32
-    norm_sum = 0.0f0
+    norm_sum = Float32.(0.0)
     for i ∈ 1:this_batch
         V = reshape(V0[:, i], (Nz, num_aug))
-        Q, _ = qr(V)
-        Q = CuArray(Q)
-        f = Q * Q' * fᵐ[:, i]
-        #f = ((Q' * fᵐ[:, i])' * Q')'
+        # Following (6.12) in Trefethen to get f.
+        # x = pinv(transpose(V) * V) * transpose(V) * fᵐ[:, i]
+        # f = V*x
+        f = V * pinv(transpose(V) * V) * transpose(V) * fᵐ[:, i]
         norm_sum += norm(f - fᵐ[:, i]) / norm(fᵐ[:,i])
     end
     # Average the accumulated loss over the mini-batch
@@ -186,7 +172,7 @@ end
 # Extract parameters from parsed_args
 
 num_aug = parsed_args["num_aug"]       
-num_epochs = parsed_args["num_epochs"] 
+ 
 prob_da = parsed_args["dropout"]
 η = parsed_args["learning_rate"]
 batch_size = parsed_args["batch_size"]
@@ -197,7 +183,7 @@ conv4_width = parsed_args["conv4_width"]
 Nz = 32
 
 # Meth-programming ftw: https://discourse.julialang.org/t/convert-string-to-function-name/1547/3
-activation = getfield(Main, Symbol(parsed_args["activation"]))
+activation = f = getfield(Main, Symbol(parsed_args["activation"]))
 optim_fun = getfield(Main, Symbol(parsed_args["optimizer"])) 
 
 #basedir = "/global/cscratch1/sd/rkube/picfun"
@@ -215,8 +201,8 @@ data_7 = load_data(basedir, sin, 2, 1e-3, 1.0);
 data_8 = load_data(basedir, cos, 2, 1e-3, 1.0);
 
 # Concatenate all datasets
-all_x = Float32.(cat(data_1[1], data_2[1], data_3[1], data_4[1], data_5[1], data_6[1], data_7[1], data_8[1], dims=2)) |> gpu;
-all_y = Float32.(cat(data_1[2], data_2[2], data_3[2], data_4[2], data_5[2], data_6[2], data_7[2], data_8[2], dims=2)) |> gpu;
+all_x = Float32.(cat(data_1[1], data_2[1], data_3[1], data_4[1], data_5[1], data_6[1], data_7[1], data_8[1], dims=2));
+all_y = Float32.(cat(data_1[2], data_2[2], data_3[2], data_4[2], data_5[2], data_6[2], data_7[2], data_8[2], dims=2));
 
 all_x = getobs(shuffleobs(all_x));
 all_y = getobs(shuffleobs(all_y));
@@ -231,6 +217,7 @@ x_dev = all_x[:, idx_split+1:end];
 y_dev = all_y[:, idx_split+1:end];
 
 # Optimizer and parameters
+num_epochs = 30
 opt = optim_fun(η)
 
 # Define a data loader
@@ -244,21 +231,20 @@ dev_loader = Flux.Data.DataLoader((x_dev, y_dev), batchsize=batch_size, shuffle=
 model_cnn = Chain(Conv((conv1_width, 1), 2=>8, activation),  
                   Conv((conv2_width, 1), 8=>32, activation), Dropout(prob_da),
                   Conv((conv3_width, 1), 32=>128, activation), Dropout(prob_da), 
-                  Conv((conv4_width, 1), 128=>256), Flux.flatten)
+                  Conv((conv4_width, 1), 128=>256, activation), Flux.flatten)
 model_par = Chain(Dense(6, 32, activation), Dense(32, 32, activation))
 
 num_dense = 256 * (32 - sum([2*(x÷2) for x in [conv1_width conv2_width conv3_width conv4_width]]))
 
 model = Chain(Parallel(vcat, model_cnn, model_par), 
-              Dense(num_dense + 32, Nz * num_aug, activation)) |> gpu
-#              Dense(num_dense + 32, 2048, activation), 
-#              Dense(2048, 1024, activation), 
-#              Dense(1024, Nz * num_aug)) |> gpu
+              Dense(num_dense + 32, 2048, activation), 
+              Dense(2048, 1024, activation), 
+              Dense(1024, Nz * num_aug))
 
-params = Flux.params(model);
+params = Flux.params(model)
 all_loss = zeros(num_epochs);
 
-@time for e in 1:num_epochs
+for e in 1:num_epochs
     for (x, y) in train_loader
         grads = Flux.gradient(params) do
             proj_loss(x, y)
@@ -272,14 +258,12 @@ all_loss = zeros(num_epochs);
         all_loss[e] += proj_loss(x, y) / length(dev_loader) 
     end
 
-    @show e, all_loss[e]
+    @show e all_loss[e]
 end
 
-@show model
-
-model = model |> cpu
-model_name = @sprintf "nnv2_num_aug_%02d_dt1.bson" num_aug
-@save model_name model
+#model_name = @sprintf "simple_MLP_num_pca_%02d_dt1.bson" num_aug
+#@save model_name model
 
 
 # End of file
+

@@ -84,18 +84,7 @@ s = ArgParseSettings()
             default = 3
             required = true
 
-        "--conv3_width"
-            help = "Width for 3rd convolution"
-            arg_type = Int
-            default = 5
-            required = true
-
-        "--conv4_width"
-            help = "Width for 4th convolution"
-            arg_type = Int
-            default = 7
-            required = true
-    end
+   end
     return parse_args(s)
 end
 
@@ -192,9 +181,7 @@ prob_da = parsed_args["dropout"]
 batch_size = parsed_args["batch_size"]
 conv1_width = parsed_args["conv1_width"]
 conv2_width = parsed_args["conv2_width"]
-conv3_width = parsed_args["conv3_width"] 
-conv4_width = parsed_args["conv4_width"]
-Nz = 32
+Nz = 128
 
 # Meth-programming ftw: https://discourse.julialang.org/t/convert-string-to-function-name/1547/3
 activation = getfield(Main, Symbol(parsed_args["activation"]))
@@ -202,28 +189,36 @@ optim_fun = getfield(Main, Symbol(parsed_args["optimizer"]))
 
 #basedir = "/global/cscratch1/sd/rkube/picfun"
 #basedir = "/Volumes/2TB APFS Raid/simulations/picfun/"
-basedir = "/home/rkube/gpfs/picfun/DD_GMRES/baseline"
+basedir = "/home/rkube/gpfs/picfun/DD_GMRES/baseline_Nz128"
 
 # Load data from two simulations with different basis functions
-data_1 = load_data(basedir, sin, 1, 1e-2, 1.0);
-data_2 = load_data(basedir, cos, 1, 1e-2, 1.0);
-data_3 = load_data(basedir, sin, 2, 1e-2, 1.0);
-data_4 = load_data(basedir, cos, 2, 1e-2, 1.0);
-data_5 = load_data(basedir, sin, 1, 1e-3, 1.0);
-data_6 = load_data(basedir, cos, 1, 1e-3, 1.0);
-data_7 = load_data(basedir, sin, 2, 1e-3, 1.0);
-data_8 = load_data(basedir, cos, 2, 1e-3, 1.0);
+data_00 = load_data(basedir, sin, 1, 1e-3, 1.0);
+data_01 = load_data(basedir, sin, 1, 2e-3, 1.0);
+data_02 = load_data(basedir, sin, 1, 5e-3, 1.0);
+data_03 = load_data(basedir, sin, 1, 1e-2, 1.0);
+data_10 = load_data(basedir, cos, 1, 1e-3, 1.0);
+data_11 = load_data(basedir, cos, 1, 2e-3, 1.0);
+data_12 = load_data(basedir, cos, 1, 5e-3, 1.0);
+data_13 = load_data(basedir, cos, 1, 1e-2, 1.0);
+data_20 = load_data(basedir, sin, 2, 1e-3, 1.0);
+data_21 = load_data(basedir, sin, 2, 2e-3, 1.0);
+data_22 = load_data(basedir, sin, 2, 5e-3, 1.0);
+data_23 = load_data(basedir, sin, 2, 1e-2, 1.0);
+data_30 = load_data(basedir, cos, 2, 1e-3, 1.0);
+data_31 = load_data(basedir, cos, 2, 2e-3, 1.0);
+data_32 = load_data(basedir, cos, 2, 5e-3, 1.0);
+data_33 = load_data(basedir, cos, 2, 1e-2, 1.0);
 
 # Concatenate all datasets
-all_x = Float32.(cat(data_1[1], data_2[1], data_3[1], data_4[1], data_5[1], data_6[1], data_7[1], data_8[1], dims=2)) |> gpu;
-all_y = Float32.(cat(data_1[2], data_2[2], data_3[2], data_4[2], data_5[2], data_6[2], data_7[2], data_8[2], dims=2)) |> gpu;
+all_x = Float32.(cat(data_00[1], data_01[1], data_02[1], data_03[1], data_10[1], data_11[1], data_12[1], data_13[1], data_20[1], data_21[1], data_22[1], data_23[1], data_30[1], data_31[1], data_32[1], data_33[1], dims=2)) |> gpu;
+all_y = Float32.(cat(data_00[2], data_01[2], data_02[2], data_03[2], data_10[2], data_11[2], data_12[2], data_13[2], data_20[2], data_21[2], data_22[2], data_23[2], data_30[2], data_31[2], data_32[2], data_33[2], dims=2)) |> gpu;
 
 all_x = getobs(shuffleobs(all_x));
 all_y = getobs(shuffleobs(all_y));
 
 # Split into train and test set
 num_samples = size(all_x, 2)
-idx_split = Int(num_samples * 0.8)
+idx_split = Int((num_samples * 0.8) ÷ 1)
 x_train = all_x[:, 1:idx_split];
 y_train = all_y[:, 1:idx_split];
 
@@ -241,19 +236,24 @@ dev_loader = Flux.Data.DataLoader((x_dev, y_dev), batchsize=batch_size, shuffle=
 # (x, y) = first(train_loader)
 # Now try a 1d-cnn
 
-model_cnn = Chain(Conv((conv1_width, 1), 2=>8, activation),  
-                  Conv((conv2_width, 1), 8=>32, activation), Dropout(prob_da),
-                  Conv((conv3_width, 1), 32=>128, activation), Dropout(prob_da), 
-                  Conv((conv4_width, 1), 128=>256), Flux.flatten)
-model_par = Chain(Dense(6, 32, activation), Dense(32, 32, activation))
+channels_1 = 4
+channels_2 = 16
+num_dense = 32
 
-num_dense = 256 * (32 - sum([2*(x÷2) for x in [conv1_width conv2_width conv3_width conv4_width]]))
+model_cnn = Chain(Conv((conv1_width, 1), 2=>channels_1, activation), 
+                  Conv((conv2_width, 1), channels_1=>channels_2, activation), 
+                  Flux.flatten)
+model_par = Chain(Dense(6, num_dense, activation), 
+                  Dropout(prob_da),
+                  Dense(num_dense, num_dense, activation))
+
+num_intermediate = channels_2 * (Nz - sum([2*(x÷2) for x in [conv1_width conv2_width ]]))
 
 model = Chain(Parallel(vcat, model_cnn, model_par), 
-              Dense(num_dense + 32, Nz * num_aug, activation)) |> gpu
-#              Dense(num_dense + 32, 2048, activation), 
-#              Dense(2048, 1024, activation), 
-#              Dense(1024, Nz * num_aug)) |> gpu
+              Dropout(prob_da),
+              Dense(num_intermediate + num_dense, Nz * num_aug, activation),
+              Dropout(prob_da),
+              Dense(Nz * num_aug, Nz * num_aug, activation)) |> gpu
 
 params = Flux.params(model);
 all_loss = zeros(num_epochs);
@@ -278,7 +278,7 @@ end
 @show model
 
 model = model |> cpu
-model_name = @sprintf "nnv2_num_aug_%02d_dt1.bson" num_aug
+model_name = @sprintf "nnv3_num_aug_%02d.bson" num_aug
 @save model_name model
 
 

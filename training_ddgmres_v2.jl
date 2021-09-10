@@ -1,7 +1,6 @@
 # Encoding: UTF-8 -*-
 
-using Flux, ParameterSchedulers
-using ParameterSchedulers: Scheduler
+using Flux
 using DelimitedFiles
 using Statistics 
 using Printf
@@ -9,6 +8,7 @@ using LinearAlgebra
 using MLDataPattern
 using BSON: @save
 using ArgParse
+using BenchmarkTools
 
 push!(LOAD_PATH, pwd())
 
@@ -222,7 +222,7 @@ x_dev = all_x[:, idx_split+1:end];
 y_dev = all_y[:, idx_split+1:end];
 
 # Optimizer and parameters
-num_epochs = 1
+num_epochs = 5
 opt = optim_fun(η)
 
 # Define a data loader
@@ -249,7 +249,7 @@ model = Chain(Parallel(vcat, model_cnn, model_par),
 params = Flux.params(model)
 all_loss = zeros(num_epochs);
 
-for e in 1:num_epochs
+@btime for e in 1:num_epochs
     for (x, y) in train_loader
         grads = Flux.gradient(params) do
             proj_loss(x, y)

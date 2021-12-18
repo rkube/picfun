@@ -1,4 +1,4 @@
-module mlutils
+#module mlutils
 
 export make_sim_onehot
 
@@ -24,4 +24,4 @@ function make_sim_onehot(f, k, A,  Δt)
 end
 
 
-end
+#end

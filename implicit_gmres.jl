@@ -15,15 +15,17 @@ using Printf
 using JSON
 using DelimitedFiles
 
-push!(LOAD_PATH, pwd())
+#push!(LOAD_PATH, pwd())
 
-using units: qₑ, qᵢ, mₑ, mᵢ
-using grids: grid_1d, init_grid
-using pic_utils: smooth, deposit
-using particles: particle, fix_position!
-using particle_push: push_v3!
-using solvers: ∇⁻², invert_laplace
-using diagnostics: diag_ptl, diag_energy, diag_fields
+#using units: qₑ, qᵢ, mₑ, mᵢ
+#using grids: grid_1d, init_grid
+#using pic_utils: smooth, deposit
+#using particles: particle, fix_position!
+#using particle_push: push_v3!
+#using solvers: ∇⁻², invert_laplace
+#using diagnostics: diag_ptl, diag_energy, diag_fields
+
+using picfun
 
 
 stringdata = join(readlines("simulation.json"))

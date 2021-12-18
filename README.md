@@ -21,3 +21,10 @@ on a 1-dimensional grid. The new electric field is determined by
 SM[Q] = (Q_{i-1} + 2Q_i + Q_{i+1}) / 4
 ```
 is a binomial smoothing operator and angular brackets denote spatial averaging.
+
+
+A good point to start the simulation is by running
+```
+$ julia implicit_gmres.jl
+```
+

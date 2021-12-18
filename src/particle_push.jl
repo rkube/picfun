@@ -2,15 +2,9 @@
 # Implementation of particle pushing schemes
 #
 
-module particle_push
-
-using units: qₑ, qᵢ, mₑ, mᵢ
-using grids: grid_1d
-using particles: particle, fix_position!
 using Distributions
 
 export push_v3!
-
 
 """
 
@@ -93,4 +87,4 @@ function push_v3!(ptl::Array{particle},
     end #for ptl i
 end
 
-end #module
+# End of file particle_push.jl

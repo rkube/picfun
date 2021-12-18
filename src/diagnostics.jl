@@ -1,14 +1,8 @@
 #
-#
-#
-module diagnostics
-
 using Printf
-using particles: particle
-using units: qₑ, qᵢ, mₑ, mᵢ
-using grids: grid_1d
-using solvers: ∇⁻², invert_laplace
-using pic_utils: deposit, smooth
+
+export diag_ptl, diag_energy, diag_fields
+
 
 function diag_ptl(ptlₑ::Array{particle, 1}, ptlᵢ::Array{particle, 1}, tidx)
     # Write particle kinetics to file
@@ -107,4 +101,4 @@ function diag_fields(ptlₑ:: Array{particle, 1}, ptlᵢ::Array{particle, 1}, zg
     end
 end #function diag_fields
 
-end # module diagnostics
+#end # module diagnostics

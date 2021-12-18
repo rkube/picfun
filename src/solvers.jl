@@ -1,14 +1,13 @@
 # Encodin: UTF-8 -*-
 
-module solvers
 
 using Zygote
 using FFTW: fft, ifft
 using LinearAlgebra
-using grids: grid_1d
 using IterativeSolvers
 using Printf
 using DelimitedFiles
+
 
 export ∇⁻², invert_laplace, dd_gmres, dd_gmres_ben
 
@@ -225,5 +224,4 @@ function dd_gmres_ben(A, b, V, num_it; log=false)
 end
 
 
-end # module
 # End of file solvers.jl

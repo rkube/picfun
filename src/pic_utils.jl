@@ -1,8 +1,7 @@
-module pic_utils
+#Encoding: UTF-8 
 
 using Zygote
-using particles: particle
-using grids: grid_1d
+
 
 export S_vec, b1, smooth, deposit
 
@@ -117,4 +116,4 @@ function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     return(S)
 end
 
-end
+# End of file pic_utils.jl

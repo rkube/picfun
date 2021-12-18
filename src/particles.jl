@@ -1,7 +1,6 @@
 #
 # Define particle struct
 #
-module particles
 
 using Zygote
 import Base: +, -
@@ -53,5 +52,4 @@ function fix_position!(particle, L)
     #particle.pos = mod(particle.pos, L)
 end
 
-
-end
+# End of file particles.jl

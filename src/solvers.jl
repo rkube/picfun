@@ -9,7 +9,7 @@ using Printf
 using DelimitedFiles
 
 
-export ∇⁻², invert_laplace, dd_gmres, dd_gmres_ben
+export ∇⁻², invert_laplace, inv_laplace2, dd_gmres, dd_gmres_ben
 
 
 @doc """Given a charge distribution on a grid, solves for the electrostatic
@@ -62,7 +62,7 @@ function invert_laplace(y,  zgrid::grid_1d)
         A0[n, n-1] = invΔz²
         A0[n-1, n] = invΔz²
     end
-    A0[1,1] = 1.0
+    A0[1, 1] = 1.0
     A0[1, 2] = 0.0
     A0[Nz,1] = invΔz²
 
@@ -72,6 +72,31 @@ function invert_laplace(y,  zgrid::grid_1d)
     ϕ_num = A \ yvec
 
     return(ϕ_num)
+end
+
+
+function inv_laplace2(y,  zgrid::grid_1d)
+    # Solve Laplace equation, fixing the mean of the solution to be zero
+	Nz, Lz = zgrid.Nz, zgrid.Lz
+    Δz = Lz / Nz
+    invΔz² = 1.0 / Δz / Δz
+
+    A = zeros(Nz+1,Nz+1); # matrix of discrete Laplacian with integral constraint.
+    
+    y2 = vcat(y, zero(eltype(y)))
+
+    A[1, 1] = -2.0 * invΔz²
+    for n ∈ 2:Nz
+        A[n, n] = -2.0 * invΔz²
+        A[n, n-1] = invΔz²
+        A[n-1, n] = invΔz²
+    end
+    A[1:Nz, Nz+1] .= 1.0
+    A[1, Nz] = invΔz²
+    A[Nz, 1] = invΔz²
+    A[Nz+1, 1:Nz] .= Δz
+
+    A \ y2
 end
 
 # Naive GMRES implementation

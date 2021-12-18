@@ -1,8 +1,9 @@
 # PICfun
 
-This repository implements the PIC algorithm described by Chen et al. http://dx.doi.org/10.1016/j.jcp.2011.05.031
+This repository implements the PIC algorithm described by [Chen et al.](http://dx.doi.org/10.1016/j.jcp.2011.05.031)
 With this project I'm testing how to accelerate iterative linear solvers in simple PIC algorithms with ML.
 
+This code has been used for [arXiv:2110.12444](https://arxiv.org/abs/2110.12444)
 ## PIC equations
 
 The code solves the equations

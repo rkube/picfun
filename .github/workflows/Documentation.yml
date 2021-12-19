@@ -1,6 +1,6 @@
 name: Documentation
 on:
-  push
+  push:
     branches:
       - master
     tags: '*'

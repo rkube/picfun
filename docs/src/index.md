@@ -7,6 +7,5 @@ simulation. Most parts of the code should be differentiable.
 
 This code has been used for [arXiv:2110.12444](https://arxiv.org/abs/2110.12444)
 
-```@docs
-init_grid(Lz, Nz)
-```
+The documentation is still work in progress. Please check back later or
+contact the author.

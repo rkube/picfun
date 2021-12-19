@@ -14,42 +14,62 @@ mutable struct particle
     vel
 end
 
-# Copy method creates a new instance.
+"""
+
+    copy(p::particle)
+
+Returns a new partilce instance with the same position and velocity as the original particle.
+"""
 Base.copy(p::particle) = particle(p.pos, p.vel)
 
-x(p::particle) = p.x
+
+x(p::particle) = p.pos
 Zygote.@adjoint function x(p::particle)
     @show p
     println("@adjoint x(p)")
-    (p.x, x̄ -> (particle(x̄, 0), ))
+    (p.pos, x̄ -> (particle(x̄, 0), ))
 end
 
 v(p::particle) = p.v
 Zygote.@adjoint function v(p::particle)
     @show p 
     println("@adjoint v(p)")
-    (p.v, v̄ -> (particle(0, v̄), ))
+    (p.vel, v̄ -> (particle(0, v̄), ))
 end
 
 # Define arithmetic rules for particles
 # In practice they act like a vector from R²
 # These should never be used directly, but serve only to define 
 # rules for derivatives.
-a::particle + b::particle = particle(x(a) + x(b), v(a) + v(b))
-a::particle - b::particle = particle(x(a) - x(b), v(a) - v(b))
 
-# Adjoint constructor
+"""
+
+    +(a::particle, b::particle)
+
+Add position and velocity for particle structs.
+"""
+(+)(a::particle, b::particle) = particle(a.pos + b.pos, a.vel + b.vel)
+
+"""
+
+    -(a::particle, b::particle)
+
+Subtract position and velocity for particle structs.
+"""
+(-)(a::particle, b::particle) = particle(a.pos - b.pos, a.vel - b.vel)
+
+
 Zygote.@adjoint particle(x, v) = particle(x, v), p̄ -> (p̄.x, p̄.v)
 
-function fix_position!(particle, L)
-    # If a particle position is outside the domain, move it
-    # by one domain length so that it is within the domain
-    if particle.pos < 0
-        particle.pos += L - 10 * eps(typeof(particle.pos))
-    elseif particle.pos ≥ L
-        particle.pos -= L + 10 * eps(typeof(particle.pos))
-    end
-    #particle.pos = mod(particle.pos, L)
+
+"""
+
+    fix_position!(p, L)
+
+Moves a particle's position back into the domain [0:L]
+"""
+function fix_position!(ptl::particle, L)
+    ptl.pos = mod(ptl.pos, L)
 end
 
 # End of file particles.jl

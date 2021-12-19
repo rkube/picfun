@@ -3,9 +3,9 @@ push!(LOAD_PATH, "../src")
 makedocs(sitename="picfun",
          pages = [
              "Home" => "index.md",
-             "Simulation setup" => "simsetup.md"
-         ],
-         html_prettyurls = false)
+             "Simulation setup" => "simsetup.md",
+             "Code Reference" => "utilities.md"
+         ])
 
 deploydocs(; 
     repo="github.com/rkube/picfun")

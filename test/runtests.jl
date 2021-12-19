@@ -32,8 +32,8 @@ using LinearAlgebra
 	# Subtract the mean from the profile before comparing
 #     dist_list[ctr] = norm((u .- mean(u)) - u_num)
 	# @show norm(u - u_num)
-		append!(dist_solver1, sqrt(Δz * sum((u - u_num1).^2)))
-		append!(dist_solver2, sqrt(Δz * sum(((u .- mean(u)) - u_num2[1:Nz]).^2)))
+		append!(dist_solver1, sqrt(zgrid.Δz * sum((u - u_num1).^2)))
+		append!(dist_solver2, sqrt(zgrid.Δz * sum(((u .- mean(u)) - u_num2[1:Nz]).^2)))
         
         # u_num = inv_laplace2(d2u, zgrid)
         # dist_solver2[ctr] = norm(u - u_num)

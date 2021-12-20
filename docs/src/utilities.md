@@ -14,9 +14,19 @@ Utility functions related to the particles.
 
 
 ```@docs
-copy(p::particle)
+particle
+x(::particle)
+v(::particle)
+copy(::particle)
 fix_position!(ptl::particle, L)
 +(::particle, ::particle)
 -(::particle, ::particle)
+```
+
+## pic_utils
+Utility functions related to PIC algorithm
+```@docs
+b1(z, zp, Δz)
+deposit(::Array{particle}, zgrid::grid_1d, fun::Function)
 ```
 ##

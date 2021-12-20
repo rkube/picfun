@@ -5,11 +5,14 @@ using Zygote
 
 export S_vec, b1, smooth, deposit
 
-@doc """
-Implements the binomial smoothing operator:
-SM(Q)_i = (Q_[i-1] + 2 Q[i] + Q_[i+1]) / 4
 
-""" ->
+"""
+
+    smooth(Q)
+
+Implements the binomial smoothing operator:
+``SM(Q)_{i} = (Q_{i-1} + 2 Q{i} + Q_{i+1}) / 4``.
+"""
 function smooth(Q)
   #Q_sm = zeros(length(Q))
   Nz = size(Q)[1]
@@ -20,13 +23,19 @@ function smooth(Q)
   return copy(Q_sm)
 end
 
-@doc """
-b-spline b1.
+
+"""
+
+    b1(z, zp, Δz)
+
+
+Implements a triangular interpolation. This function constructs
+x = (z - zp) / Δz from its arguments and calculates:
 
           0     for       |x| ≥ 1
 b1(x) = { x+1   for   -1 < x < 0
           1-x   for    0 ≤ x < 1
-""" ->
+"""
 function b1(z, zp, Δz)
     arg = (z - zp) / Δz
     if abs(arg) > 1
@@ -41,9 +50,12 @@ function b1(z, zp, Δz)
 end
 
 
-@doc """
-Given a particle position zp, evaluate the S(x, xp) on the entire grid
-""" ->
+"""
+
+    S_vec(zp, _zgrid, Δz)
+
+Given a particle position zp, evaluate the S(x, xp) on the entire grid.
+"""
 function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::AbstractArray{<:AbstractFloat})
     # We have periodic boundary conditions and zgrid does not include the element at L
     # The algorithm below ignores this and calculates the weights on the last index where z < zp
@@ -72,10 +84,13 @@ function S_vec(zp::AbstractFloat, _zgrid::AbstractArray{<:AbstractFloat}, Δz::A
 end
 
 
-@doc """
+"""
+
+    deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
+
 Evaluate the expression ∑_{particle} f(p) * b1(z_i, z_particle, Δz), where i
 indices the grid, for all grid points.
-""" ->
+"""
 function deposit(ptl_vec::Array{particle}, zgrid::grid_1d, fun::Function)
     # Get the z-coordinates of the grid, plus one point at the upper boundary.
     zz = (0:1:zgrid.Nz) * zgrid.Δz

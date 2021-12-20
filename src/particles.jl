@@ -6,9 +6,16 @@ using Zygote
 import Base: +, -
 
 
-export particle, fix_position!
+export particle, fix_position!, x, v
 
 # Particles have a position and velocity
+"""
+`particle` represents the phase-space coordinates of a particle.
+
+# Fields
+- pos: Position in space
+- vel: Velocity
+"""
 mutable struct particle
     pos
     vel
@@ -22,14 +29,35 @@ Returns a new partilce instance with the same position and velocity as the origi
 """
 Base.copy(p::particle) = particle(p.pos, p.vel)
 
+"""
 
-x(p::particle) = p.pos
+    x(p::particle)
+
+Accesses the particle's position. This is wrapped in a function so that
+we can define the adjoint as
+
+``\\bar{x} \rightarrow  \\mathrm{particle}\\left( \\bar{x}, 0 \\right)``.
+"""
+function x(p::particle)
+    p.pos
+end
+
 Zygote.@adjoint function x(p::particle)
     @show p
     println("@adjoint x(p)")
     (p.pos, x̄ -> (particle(x̄, 0), ))
 end
 
+
+"""
+
+    v(p::particle)
+
+Accesses the particle's velocity. This is wrapped in a function so that
+we can define the adjoint
+
+``\\bar{v} \rightarrow  \\mathrm{particle}\\left( 0, \\bar{v} \\right)``.
+"""
 v(p::particle) = p.v
 Zygote.@adjoint function v(p::particle)
     @show p 

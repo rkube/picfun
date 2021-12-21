@@ -38,15 +38,9 @@ b1(x) = { x+1   for   -1 < x < 0
 """
 function b1(z, zp, Δz)
     arg = (z - zp) / Δz
-    if abs(arg) > 1
-        return (0.0)
-    end
+    abs(arg) > 1 && return(zero(zp))
 
-    if arg < 0
-        return (arg + 1)
-    elseif  arg ≥ 0
-        return (1 - arg)
-    end
+    arg < 0 ? arg + 1.0 : 1.0 - arg
 end
 
 

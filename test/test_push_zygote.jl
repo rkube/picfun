@@ -10,18 +10,18 @@ using LinearAlgebra
 using Printf
 
 
-using FiniteDiff
-using ForwardDiff
+#using FiniteDiff
+#using ForwardDiff
 using Zygote
 import Base: +, -
 
 push!(LOAD_PATH, "/home/rkube/repos/picfun")
 
-using units: qₑ, qᵢ, mₑ, mᵢ
-using grids: grid_1d, init_grid
+using picfun: qₑ, qᵢ, mₑ, mᵢ
+using picfun: grid_1d, init_grid
 #using particles: particle, fix_position!
-using solvers: invert_laplace
-using pic_utils: b1
+using picfun: invert_laplace
+using picfun: b1
 
 
 # Particles have a position and velocity

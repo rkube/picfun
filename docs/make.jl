@@ -4,7 +4,8 @@ makedocs(sitename="picfun",
          pages = [
              "Home" => "index.md",
              "Simulation setup" => "simsetup.md",
-             "Code Reference" => "utilities.md"
+             "Code Reference" => "utilities.md",
+             "Differentiability" => "diffable.md"
          ])
 
 deploydocs(; 

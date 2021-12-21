@@ -58,7 +58,7 @@ we can define the adjoint
 
 ``\\bar{v} \rightarrow  \\mathrm{particle}\\left( 0, \\bar{v} \\right)``.
 """
-v(p::particle) = p.v
+v(p::particle) = p.vel
 Zygote.@adjoint function v(p::particle)
     @show p 
     println("@adjoint v(p)")

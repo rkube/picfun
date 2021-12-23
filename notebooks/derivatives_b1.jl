@@ -34,8 +34,6 @@ md"# Test differentiability of shape function
 Shape functions are used to distribute particle properties, such as mass and charge,
 to nearby grid nodes. This notebook tests and illustrates the differentiability of shape functions."
 
-
-
 # ╔═╡ fcb3e3be-511d-481c-a12f-68094a0c36e0
 md"## Setup
 

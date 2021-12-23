@@ -119,7 +119,7 @@ function proj_loss(x, fᵐ)
         f = Q * Q' * fᵐ[:, i]
         # Regularize: The vectors should not be linear dependent
         # Penalize collinearity of the column vectors in V.
-        reg = sum(triu(V' * V))
+        reg = sum(abs.(triu(V' * V)))
         norm_sum += λ * reg +  norm(f - fᵐ[:, i]) / norm(fᵐ[:,i]) 
     end
     # Average the accumulated loss over the mini-batch
